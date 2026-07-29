@@ -1,0 +1,171 @@
+{
+  "workspaceUrl": "https://example.slack.com",
+  "storage": {
+    "slacrawlDatabasePath": "~/.slacrawl/slacrawl.db"
+  },
+  "prompts": [
+    "@DEFAULT_BASE_INSTRUCTIONS@",
+    "@DEFAULT_BASE_PROMPT@",
+    "actions-followup/INSTRUCTIONS.md"
+  ],
+  "model": {
+    "provider": "openai-compatible",
+    "model": "gpt-5.4-mini",
+    "maxOutputTokens": 4000,
+    "failOnInvalidOutput": false
+  },
+  "channels": [
+    {
+      "id": "C_ENGINEERING",
+      "name": "engineering",
+      "kind": "channel"
+    },
+    {
+      "id": "C_PRODUCT",
+      "name": "product",
+      "kind": "channel"
+    },
+    {
+      "id": "D_MANAGER_ALICE",
+      "name": "dm-manager-alice",
+      "kind": "dm"
+    },
+    {
+      "id": "G_MANAGER_GROUP",
+      "name": "manager-mpim",
+      "kind": "mpim"
+    }
+  ],
+  "globalMatchers": [
+    {
+      "id": "manager_action_intent",
+      "type": "and",
+      "matchers": [
+        {
+          "id": "manager_mentions",
+          "type": "mention",
+          "userId": "U_MANAGER"
+        },
+        {
+          "id": "action_intent_any",
+          "type": "or",
+          "matchers": [
+            {
+              "id": "action_keywords",
+              "type": "regex",
+              "pattern": "\\b(action|todo|blocked|pending|solved|dismissed|decision)\\b",
+              "flags": "iu"
+            },
+            {
+              "id": "action_phrases",
+              "type": "text",
+              "terms": [
+                "follow up",
+                "action item",
+                "please check",
+                "can you",
+                "need to",
+                "next step"
+              ]
+            },
+            {
+              "id": "action_intent",
+              "type": "scored",
+              "question": "Is this Slack message an action, todo, follow-up, blocker, request, resolution, or decision that a manager should track?",
+              "thresholds": {
+                "unrelatedBelow": 0.3,
+                "ambiguousFrom": 0.3,
+                "ambiguousBelow": 0.45,
+                "relatedFrom": 0.45
+              },
+              "scoring": {
+                "semanticSimilarityWeight": 0.4,
+                "questionSimilarityWeight": 0.15,
+                "keywordWeight": 0.35,
+                "phraseWeight": 0.35,
+                "patternWeight": 0.25
+              },
+              "heuristics": {
+                "keywords": [
+                  "action",
+                  "todo",
+                  "blocked",
+                  "pending",
+                  "solved",
+                  "dismissed",
+                  "decision"
+                ],
+                "phrases": [
+                  "follow up",
+                  "action item",
+                  "please check",
+                  "can you",
+                  "need to",
+                  "next step"
+                ],
+                "patterns": ["\\b(done|resolved|blocked)\\b", "\\b(todo|action item)s?\\b"]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scoredMatcherDefaults": {
+    "embeddings": {
+      "enabled": false,
+      "provider": "ollama",
+      "model": "nomic-embed-text",
+      "cache": true
+    },
+    "classifier": {
+      "enabled": false,
+      "useForRanges": ["ambiguous"],
+      "provider": "ollama",
+      "model": "qwen3:0.6b",
+      "timeoutMs": 120000,
+      "maxInputMessages": 1
+    }
+  },
+  "context": {
+    "includeRealThread": true,
+    "nearbyMessagesBeforeMinutes": 5,
+    "nearbyMessagesAfterMinutes": 60,
+    "maxMessages": 100,
+    "syntheticThreads": {
+      "enabled": true,
+      "candidateWindowMinutes": 60,
+      "thresholds": {
+        "unrelatedBelow": 0.6,
+        "ambiguousFrom": 0.6,
+        "ambiguousBelow": 0.72,
+        "relatedFrom": 0.72
+      },
+      "scoring": {
+        "semanticSimilarityWeight": 0.55,
+        "lexicalOverlapWeight": 0.2,
+        "sameAuthorOrMentionWeight": 0.1,
+        "temporalProximityWeight": 0.1,
+        "channelTopicMatchWeight": 0.05
+      },
+      "heuristics": {
+        "keywords": ["action", "todo", "follow up", "blocked", "pending", "solved", "dismissed"],
+        "messageHasReplyMarkers": ["done", "I checked", "blocked", "resolved"]
+      },
+      "embeddings": {
+        "enabled": false,
+        "provider": "ollama",
+        "model": "nomic-embed-text",
+        "cache": true
+      },
+      "classifier": {
+        "enabled": false,
+        "useForRanges": ["ambiguous"],
+        "provider": "ollama",
+        "model": "qwen3:0.6b",
+        "timeoutMs": 120000,
+        "maxInputMessages": 8
+      }
+    }
+  }
+}

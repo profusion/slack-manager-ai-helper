@@ -1,0 +1,764 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/barbieri/slack-manager-ai-helper/schemas/config.schema.json",
+  "description": "Configuration for one slack-manager-ai-helper topic. The topic id is inferred from the config filename. Each file defines Slack sources to scan in a read-only slacrawl SQLite database, message matching rules, prompt references, model settings, context expansion, and local state persistence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workspaceUrl", "prompts", "model"],
+  "properties": {
+    "workspaceUrl": {
+      "description": "Base Slack workspace web URL used to create HTTP evidence permalinks, for example https://example.slack.com. Evidence hrefs are formatted as <workspaceUrl>/archives/<channelId>/p<tsWithoutDot>, with ?thread_ts=<threadTs> appended for thread replies.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^/]+\\.slack\\.com/?$"
+    },
+    "storage": {
+      "description": "Optional filesystem locations for the read-only slacrawl database and local JSON state file. When omitted, slacrawlDatabasePath defaults to paths.default_database from slacrawl metadata --json.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "slacrawlDatabasePath": {
+          "description": "Path to the local SQLite database produced by slacrawl. When omitted, the CLI reads paths.default_database from slacrawl metadata --json. The CLI opens this database read-only and never writes to it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "statePath": {
+          "description": "Optional path to the local JSON state file. When omitted, the CLI stores state as state-<config-name>.json beside the config file, stripping a trailing -config from the config filename.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "prompts": {
+      "description": "One Markdown prompt reference or an ordered list of Markdown prompt references. File paths are resolved relative to the config. @DEFAULT_BASE_INSTRUCTIONS@ and @DEFAULT_BASE_PROMPT@ expand to built-in prompts. Prompt content is concatenated in order and may include a jsonschema fenced block that defines the structured output memory field.",
+      "oneOf": [
+        {
+          "description": "Single Markdown prompt file path or built-in prompt token.",
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "description": "Ordered Markdown prompt file paths and built-in prompt tokens. Use this to combine built-in base prompts with topic-specific instructions.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "description": "Markdown prompt file path resolved relative to the config file unless absolute or home-relative, or one of the built-in prompt tokens.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
+    },
+    "model": {
+      "description": "LLM provider and generation settings used for matched-message analysis.",
+      "$ref": "#/$defs/analysisModel"
+    },
+    "redaction": {
+      "description": "Optional redaction settings applied before Slack messages, previous memory, and model output are sent to models or persisted in state. Built-in secret patterns are enabled by default; additionalPatterns extend them.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "Whether to redact sensitive text before model calls and state writes. Defaults to true when omitted.",
+          "type": "boolean"
+        },
+        "replacement": {
+          "description": "Replacement text used for redacted matches. Defaults to [REDACTED].",
+          "type": "string"
+        },
+        "additionalPatterns": {
+          "description": "Additional JavaScript regular expressions appended to the built-in redaction patterns.",
+          "type": "array",
+          "items": {
+            "description": "One custom redaction pattern.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "pattern"],
+            "properties": {
+              "id": {
+                "description": "Stable identifier for this custom redaction pattern.",
+                "type": "string",
+                "minLength": 1
+              },
+              "pattern": {
+                "description": "JavaScript RegExp pattern source. The implementation forces global and unicode flags.",
+                "type": "string",
+                "minLength": 1
+              },
+              "flags": {
+                "description": "Optional JavaScript RegExp flags. Global and unicode flags are added automatically.",
+                "type": "string",
+                "pattern": "^[dgimsuvy]*$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "channels": {
+      "description": "Optional Slack channel, DM, or MPIM sources to scan for this topic. A configured source with no applicable positive matchers matches every eligible message in that source. Provide channels or globalMatchers; when both are omitted, no Slack messages can match.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "description": "Configured Slack source.",
+        "$ref": "#/$defs/channel"
+      }
+    },
+    "globalMatchers": {
+      "description": "Matchers applied to messages from every configured channel. When channels is omitted, global matchers scan every Slack source in the slacrawl database, but messages still need an explicit global matcher hit.",
+      "type": "array",
+      "items": {
+        "description": "Matcher applied globally across channels.",
+        "$ref": "#/$defs/matcher"
+      }
+    },
+    "scoredMatcherDefaults": {
+      "description": "Default provider settings for scored matchers. Individual scored matchers can override embeddings or classifier fields.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "embeddings": {
+          "description": "Default embeddings provider settings for scored matchers.",
+          "$ref": "#/$defs/embeddings"
+        },
+        "classifier": {
+          "description": "Default classifier provider settings for scored matchers.",
+          "$ref": "#/$defs/classifier"
+        }
+      }
+    },
+    "context": {
+      "description": "Optional controls for expanding matched messages into evidence before calling the model. When omitted, it behaves like an empty object.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "includeRealThread": {
+          "description": "Include real Slack thread replies when thread metadata is available in the slacrawl database. Defaults to true when omitted.",
+          "type": "boolean"
+        },
+        "nearbyMessagesBeforeMinutes": {
+          "description": "Minutes of same-channel messages before each match to include as nearby context. Defaults to 5 when omitted.",
+          "type": "number",
+          "minimum": 0
+        },
+        "nearbyMessagesAfterMinutes": {
+          "description": "Minutes of same-channel messages after each match to include as nearby context. Defaults to 60 when omitted.",
+          "type": "number",
+          "minimum": 0
+        },
+        "maxMessages": {
+          "description": "Maximum number of same-channel nearby context messages to analyze for each matched anchor. The count resets for every match and does not cap matched anchors or real thread messages. Defaults to 100 when omitted.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "syntheticThreads": {
+          "description": "Optional settings for detecting related messages outside real Slack threads. Detection is enabled by default; set enabled to false to disable it.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "description": "Whether synthetic-thread detection is enabled for this topic. Defaults to true when omitted.",
+              "type": "boolean"
+            },
+            "candidateWindowMinutes": {
+              "description": "Time window around the anchor match for considering synthetic-related candidate messages. Defaults to 60 when omitted.",
+              "type": "number",
+              "minimum": 0
+            },
+            "thresholds": {
+              "description": "Score thresholds used to classify synthetic relation candidates. Defaults are unrelatedBelow 0.6, ambiguousFrom 0.6, ambiguousBelow 0.72, and relatedFrom 0.72.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "unrelatedBelow": {
+                  "description": "Scores below this value are treated as unrelated.",
+                  "type": "number"
+                },
+                "ambiguousFrom": {
+                  "description": "Inclusive lower bound for ambiguous candidates.",
+                  "type": "number"
+                },
+                "ambiguousBelow": {
+                  "description": "Exclusive upper bound for ambiguous candidates.",
+                  "type": "number"
+                },
+                "relatedFrom": {
+                  "description": "Inclusive lower bound for related candidates.",
+                  "type": "number"
+                }
+              }
+            },
+            "scoring": {
+              "description": "Weights for deterministic relation-scoring features. Defaults are semanticSimilarityWeight 0, lexicalOverlapWeight 0.55, sameAuthorOrMentionWeight 0.2, temporalProximityWeight 0.2, and channelTopicMatchWeight 0.05.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "semanticSimilarityWeight": {
+                  "description": "Weight reserved for semantic similarity when embeddings are available.",
+                  "type": "number"
+                },
+                "lexicalOverlapWeight": {
+                  "description": "Weight for token overlap between anchor and candidate message text.",
+                  "type": "number"
+                },
+                "sameAuthorOrMentionWeight": {
+                  "description": "Weight for same author or candidate mentioning the anchor author.",
+                  "type": "number"
+                },
+                "temporalProximityWeight": {
+                  "description": "Weight for candidate proximity to the anchor timestamp within the configured window.",
+                  "type": "number"
+                },
+                "channelTopicMatchWeight": {
+                  "description": "Weight for configured keyword or reply-marker matches in the candidate message.",
+                  "type": "number"
+                }
+              }
+            },
+            "heuristics": {
+              "description": "Keyword and phrase hints used by deterministic synthetic-thread scoring.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "keywords": {
+                  "description": "Topic words that indicate a candidate message may belong to the same discussion.",
+                  "type": "array",
+                  "items": {
+                    "description": "Keyword searched case-insensitively in candidate text.",
+                    "type": "string"
+                  }
+                },
+                "messageHasReplyMarkers": {
+                  "description": "Phrases that suggest the candidate is replying to earlier context even without a Slack thread.",
+                  "type": "array",
+                  "items": {
+                    "description": "Reply-marker phrase searched case-insensitively in candidate text.",
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "embeddings": {
+              "description": "Optional embeddings provider configuration for semantic similarity scoring.",
+              "$ref": "#/$defs/embeddings"
+            },
+            "classifier": {
+              "description": "Optional classifier provider configuration for resolving synthetic-thread candidates in selected score ranges.",
+              "$ref": "#/$defs/classifier"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "analysisModel": {
+      "description": "LLM provider and generation settings used for matched-message analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model"],
+      "properties": {
+        "provider": {
+          "description": "Built-in AI SDK provider id, such as openai, anthropic, google, xai, openrouter, opencode, openai-compatible, gateway, or ollama.",
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "description": "Provider-specific model name passed to the Vercel AI SDK provider factory.",
+          "type": "string",
+          "minLength": 1
+        },
+        "fallback": {
+          "description": "Optional fallback analysis model tried after this model exhausts its retries because provider execution failed or failOnInvalidOutput rejected structured output. Fallback models use the same schema recursively.",
+          "$ref": "#/$defs/analysisModel"
+        },
+        "retries": {
+          "description": "Number of retry attempts for this model before falling back to model.fallback or failing the run. Defaults to 3, meaning the model may be called up to 4 times.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseUrl": {
+          "description": "Optional provider base URL for analysis model providers that support custom endpoints, such as openai-compatible and ollama. For Ollama, defaults to OLLAMA_URL or http://127.0.0.1:11434.",
+          "type": "string",
+          "minLength": 1
+        },
+        "temperature": {
+          "description": "Optional model sampling temperature. Lower values make outputs more deterministic. Omitted automatically for known reasoning model families that do not support temperature.",
+          "type": "number",
+          "minimum": 0
+        },
+        "reasoningEffort": {
+          "description": "Optional reasoning effort for providers/models that support it. Passed through as the provider-specific AI SDK reasoning effort option.",
+          "type": "string",
+          "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        },
+        "minReportWords": {
+          "description": "Minimum number of meaningful words required in structured reportText. A meaningful word contains at least four alphabetic characters after Markdown formatting, links, URLs, code fences, and punctuation are removed. Defaults to 25.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxOutputTokens": {
+          "description": "Optional upper bound for generated output tokens.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "contextWindowTokens": {
+          "description": "Optional model context window size in tokens. When set, the runtime estimates the fully compiled system and prompt tokens, including schemas and previous memory, and splits model calls by local date/channel before the request would exceed this window.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "timeoutMs": {
+          "description": "Optional timeout in milliseconds for the analysis model call. When omitted, the provider request uses the AI SDK default behavior.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "openrouter": {
+          "description": "Optional OpenRouter-specific analysis model request settings. Only used when model.provider is openrouter; omitted fields are not sent to OpenRouter.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "includeReasoning": {
+              "description": "When false, sends OpenRouter reasoning.exclude=true so reasoning tokens are not included in the response. When true, sends reasoning.exclude=false. When omitted, no reasoning exclude preference is sent.",
+              "type": "boolean"
+            },
+            "order": {
+              "description": "OpenRouter provider slugs to try in order, forwarded as provider.order.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "description": "OpenRouter provider slug.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allowFallbacks": {
+              "description": "Whether OpenRouter may use fallback providers when the preferred provider is unavailable, forwarded as provider.allow_fallbacks.",
+              "type": "boolean"
+            }
+          }
+        },
+        "failOnInvalidOutput": {
+          "description": "When true, a model output that fails the prompt-declared JSON Schema is retried according to model.retries before falling back or marking the run as failed. When false, validation errors are stored without crashing.",
+          "type": "boolean"
+        }
+      }
+    },
+    "embeddings": {
+      "description": "Provider settings for local or remote text embeddings used by scoring.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "Whether embedding-based semantic similarity should be requested from the provider.",
+          "type": "boolean"
+        },
+        "provider": {
+          "description": "AI SDK embedding provider id, such as ollama, openai, openrouter, google, gateway, or openai-compatible. Defaults to ollama.",
+          "type": "string"
+        },
+        "model": {
+          "description": "Embedding model name passed to the AI SDK provider. Defaults to nomic-embed-text for ollama.",
+          "type": "string"
+        },
+        "cache": {
+          "description": "Whether embedding results may be cached by future implementations.",
+          "type": "boolean"
+        },
+        "baseUrl": {
+          "description": "Provider base URL for providers that support custom endpoints. For Ollama, defaults to OLLAMA_URL or http://127.0.0.1:11434.",
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutMs": {
+          "description": "Maximum embedding provider call duration in milliseconds.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "classifier": {
+      "description": "Provider settings for classifying scored ranges as related, ambiguous, or unrelated.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "Whether classifier calls should be requested from the provider.",
+          "type": "boolean"
+        },
+        "useForRanges": {
+          "description": "Score ranges where classifier calls should be attempted. Defaults to ambiguous when omitted.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": ["ambiguous"],
+          "items": {
+            "description": "One deterministic score range eligible for classifier review.",
+            "enum": ["ambiguous", "unrelated", "related"]
+          }
+        },
+        "provider": {
+          "description": "AI SDK language provider id for classifier calls, such as ollama, openai, anthropic, google, xai, openrouter, opencode, gateway, or openai-compatible. Defaults to ollama.",
+          "type": "string"
+        },
+        "model": {
+          "description": "Classifier model name passed to the AI SDK provider. For Ollama classifier calls, defaults to qwen3:0.6b when omitted.",
+          "type": "string"
+        },
+        "baseUrl": {
+          "description": "Provider base URL for providers that support custom endpoints. For Ollama, defaults to OLLAMA_URL or http://127.0.0.1:11434.",
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutMs": {
+          "description": "Maximum classifier provider call duration in milliseconds.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxInputMessages": {
+          "description": "Maximum number of compact messages to include in a classifier prompt.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "channel": {
+      "description": "One Slack source and optional source-specific users and matchers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "description": "Slack channel, DM, or MPIM id as stored in the slacrawl database.",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "Optional human-readable Slack source name.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Slack source kind used to help the model understand whether the source is a channel, one-to-one direct message, multi-person direct message, or unknown. Use dm for Slack API im conversations.",
+          "enum": ["channel", "dm", "mpim", "unknown"]
+        },
+        "users": {
+          "description": "People whose messages are eligible as anchor matches for this source. When provided, source matchers, global matchers, and channel-level match-all behavior only match messages from these users. Thread, nearby, and synthetic-thread context can still include messages from any user.",
+          "type": "array",
+          "items": {
+            "description": "Configured Slack user.",
+            "$ref": "#/$defs/user"
+          }
+        },
+        "matchers": {
+          "description": "Matchers applied only to messages from this source. When no applicable positive matchers are configured for a source, every eligible message in that configured source becomes an anchor match after user filtering and excludes.",
+          "type": "array",
+          "items": {
+            "description": "Source-specific matcher.",
+            "$ref": "#/$defs/matcher"
+          }
+        }
+      }
+    },
+    "user": {
+      "description": "A Slack user relevant to a configured source.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "description": "Slack user id, such as U123.",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "Optional human-readable display name for reports.",
+          "type": "string"
+        },
+        "role": {
+          "description": "Optional role label, such as engineer, manager, requester, or reviewer.",
+          "type": "string"
+        }
+      }
+    },
+    "matcher": {
+      "description": "A top-level message matcher. Positive matchers choose anchor messages; exclude matchers suppress messages before positive matching.",
+      "oneOf": [
+        {
+          "description": "Positive matcher that can choose an anchor message.",
+          "$ref": "#/$defs/positiveMatcher"
+        },
+        {
+          "description": "Suppressor evaluated before positive matchers. When its nested positive matcher matches, the message is ignored.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "matcher"],
+          "properties": {
+            "id": {
+              "description": "Stable matcher id included in matcher trace logs.",
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "description": "Matcher discriminator for suppressing otherwise eligible messages.",
+              "const": "exclude"
+            },
+            "matcher": {
+              "description": "Positive matcher expression that suppresses the message when it matches. Nested exclude matchers are not allowed.",
+              "$ref": "#/$defs/positiveMatcher"
+            }
+          }
+        }
+      ]
+    },
+    "positiveMatcher": {
+      "description": "A positive matcher expression that can choose an anchor message or compose other positive matcher expressions.",
+      "oneOf": [
+        {
+          "description": "Regular expression matcher evaluated against Slack message text.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "pattern"],
+          "properties": {
+            "id": {
+              "description": "Stable matcher id included in compact state match metadata.",
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "description": "Matcher discriminator for regular expression matching.",
+              "const": "regex"
+            },
+            "pattern": {
+              "description": "JavaScript regular expression pattern evaluated against message text.",
+              "type": "string",
+              "minLength": 1
+            },
+            "flags": {
+              "description": "Optional JavaScript RegExp flags. Defaults to iu when omitted.",
+              "type": "string",
+              "pattern": "^[dgimsuvy]*$"
+            }
+          }
+        },
+        {
+          "description": "Simple text-term matcher evaluated against Slack message text.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "terms"],
+          "properties": {
+            "id": {
+              "description": "Stable matcher id included in compact state match metadata.",
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "description": "Matcher discriminator for text-term matching.",
+              "const": "text"
+            },
+            "terms": {
+              "description": "Terms where any occurrence in message text counts as a match.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "description": "Term searched in message text.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "caseInsensitive": {
+              "description": "Whether text-term matching should ignore case. Defaults to true in code when omitted.",
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "description": "Slack mention matcher for direct references to one user id.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "userId"],
+          "properties": {
+            "id": {
+              "description": "Stable matcher id included in compact state match metadata.",
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "description": "Matcher discriminator for Slack mention matching.",
+              "const": "mention"
+            },
+            "userId": {
+              "description": "Slack user id to match in <@USER> mentions.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "description": "Scored matcher that classifies a single Slack message with heuristic scoring, optional embeddings, and optional classifier settings.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "question"],
+          "properties": {
+            "id": {
+              "description": "Stable matcher id included in compact state match metadata.",
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "description": "Matcher discriminator for scored single-message matching.",
+              "const": "scored"
+            },
+            "question": {
+              "description": "Plain-language classification question this matcher approximates, such as whether this message is an action that should be tracked.",
+              "type": "string",
+              "minLength": 1
+            },
+            "thresholds": {
+              "description": "Score thresholds used to classify a scored matcher candidate. Defaults are unrelatedBelow 0.6, ambiguousFrom 0.6, ambiguousBelow 0.72, and relatedFrom 0.72.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "unrelatedBelow": {
+                  "description": "Scores below this value are treated as unrelated.",
+                  "type": "number"
+                },
+                "ambiguousFrom": {
+                  "description": "Inclusive lower bound for ambiguous candidates.",
+                  "type": "number"
+                },
+                "ambiguousBelow": {
+                  "description": "Exclusive upper bound for ambiguous candidates.",
+                  "type": "number"
+                },
+                "relatedFrom": {
+                  "description": "Inclusive lower bound for related candidates; related candidates become anchor matches.",
+                  "type": "number"
+                }
+              }
+            },
+            "scoring": {
+              "description": "Weights for scored matcher features. Defaults are semanticSimilarityWeight 0, questionSimilarityWeight 0.15, keywordWeight 0.45, phraseWeight 0.3, and patternWeight 0.1. Embedding similarity uses the configured embeddings provider when semanticSimilarityWeight is greater than zero and embeddings are enabled.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "semanticSimilarityWeight": {
+                  "description": "Weight reserved for semantic similarity when embeddings are available.",
+                  "type": "number"
+                },
+                "questionSimilarityWeight": {
+                  "description": "Weight for lexical overlap between message text and the matcher question.",
+                  "type": "number"
+                },
+                "keywordWeight": {
+                  "description": "Weight for matching any configured heuristic keyword.",
+                  "type": "number"
+                },
+                "phraseWeight": {
+                  "description": "Weight for matching any configured heuristic phrase.",
+                  "type": "number"
+                },
+                "patternWeight": {
+                  "description": "Weight for matching any configured heuristic regular expression pattern.",
+                  "type": "number"
+                }
+              }
+            },
+            "heuristics": {
+              "description": "Deterministic message hints used before optional embeddings or classifier support.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "keywords": {
+                  "description": "Words or short terms that indicate this message may satisfy the matcher question.",
+                  "type": "array",
+                  "items": {
+                    "description": "Keyword searched case-insensitively in message text.",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "phrases": {
+                  "description": "Phrases that indicate this message may satisfy the matcher question.",
+                  "type": "array",
+                  "items": {
+                    "description": "Phrase searched case-insensitively in message text.",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "patterns": {
+                  "description": "JavaScript regular expression patterns that indicate this message may satisfy the matcher question.",
+                  "type": "array",
+                  "items": {
+                    "description": "Regular expression pattern evaluated case-insensitively against message text.",
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            "embeddings": {
+              "description": "Matcher-specific embeddings provider override merged over scoredMatcherDefaults.embeddings.",
+              "$ref": "#/$defs/embeddings"
+            },
+            "classifier": {
+              "description": "Matcher-specific classifier provider override merged over scoredMatcherDefaults.classifier.",
+              "$ref": "#/$defs/classifier"
+            }
+          }
+        },
+        {
+          "description": "Positive AND matcher that requires every nested positive matcher to match.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "matchers"],
+          "properties": {
+            "id": {
+              "description": "Stable matcher id included in compact state match metadata.",
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "description": "Matcher discriminator for all-of composition.",
+              "const": "and"
+            },
+            "matchers": {
+              "description": "Nested positive matchers. Exclude matchers are not allowed here.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "description": "Nested positive matcher that must match.",
+                "$ref": "#/$defs/positiveMatcher"
+              }
+            }
+          }
+        },
+        {
+          "description": "Positive OR matcher that requires at least one nested positive matcher to match.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "type", "matchers"],
+          "properties": {
+            "id": {
+              "description": "Stable matcher id included in compact state match metadata.",
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "description": "Matcher discriminator for any-of composition.",
+              "const": "or"
+            },
+            "matchers": {
+              "description": "Nested positive matchers. Exclude matchers are not allowed here.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "description": "Nested positive matcher where any match is enough.",
+                "$ref": "#/$defs/positiveMatcher"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

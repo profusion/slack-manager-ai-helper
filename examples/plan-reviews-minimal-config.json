@@ -1,0 +1,17 @@
+{
+  "workspaceUrl": "https://example.slack.com",
+  "prompts": [
+    "@DEFAULT_BASE_INSTRUCTIONS@",
+    "@DEFAULT_BASE_PROMPT@",
+    "plan-reviews/INSTRUCTIONS.md"
+  ],
+  "model": {
+    "provider": "openai-compatible",
+    "model": "gpt-5.4-mini"
+  },
+  "channels": [
+    {
+      "id": "C_PLANNING"
+    }
+  ]
+}

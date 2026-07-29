@@ -1,0 +1,361 @@
+{
+  "schemaVersion": 1,
+  "timezone": "America/Sao_Paulo",
+  "defaults": {
+    "analysisConfig": {
+      "workspaceUrl": "https://example.slack.com",
+      "prompts": ["@DEFAULT_BASE_INSTRUCTIONS@", "@DEFAULT_BASE_PROMPT@"],
+      "model": {
+        "provider": "openai-compatible",
+        "model": "gpt-5.4-mini"
+      },
+      "context": {
+        "syntheticThreads": {
+          "enabled": true,
+          "heuristics": {
+            "keywords": ["done", "review", "update", "blocked", "plan", "planning"],
+            "messageHasReplyMarkers": [
+              "about that",
+              "regarding that",
+              "answering",
+              "yes",
+              "no",
+              "done",
+              "I will check",
+              "I checked",
+              "blocked"
+            ]
+          },
+          "embeddings": {
+            "enabled": true,
+            "provider": "ollama",
+            "model": "nomic-embed-text",
+            "cache": true
+          },
+          "classifier": {
+            "enabled": true,
+            "useForRanges": ["ambiguous"],
+            "provider": "ollama",
+            "model": "qwen3:0.6b"
+          }
+        }
+      }
+    },
+    "matchers": {
+      "post": [
+        {
+          "id": "exclude_laughs",
+          "type": "exclude",
+          "matcher": {
+            "id": "laughs",
+            "type": "regex",
+            "pattern": "^\\s*(kk+|ah[ah]+|eh[eh]+)\\s*[!,.]*\\s*$"
+          }
+        }
+      ]
+    },
+    "state": {
+      "pathTemplate": "state/{{analysis.id}}/{{target.id}}.json"
+    },
+    "reports": {
+      "archiveRepoPath": "../manager-report-archive",
+      "baseDir": "reports",
+      "latestViews": true,
+      "templates": {
+        "analysisReportPath": "{{reports.baseDir}}/{{analysis.id}}/{{period.key}}/{{target.id}}.md",
+        "analysisLatestIndexPath": "{{reports.baseDir}}/{{analysis.id}}/latest/index.md",
+        "analysisLatestReportPath": "{{reports.baseDir}}/{{analysis.id}}/latest/{{target.id}}.md",
+        "targetLatestReportPath": "{{reports.baseDir}}/{{analysis.id}}/targets/{{target.id}}/latest.md",
+        "targetIndexPath": "{{reports.baseDir}}/{{analysis.id}}/targets/{{target.id}}/index.md",
+        "rollupReportPath": "{{reports.baseDir}}/{{analysis.id}}/rollups/{{rollup.id}}/{{period.key}}/{{target.id}}.md",
+        "rollupLatestReportPath": "{{reports.baseDir}}/{{analysis.id}}/rollups/{{rollup.id}}/latest/{{target.id}}.md"
+      },
+      "commit": {
+        "enabled": true,
+        "messageTemplate": "reports: publish {{analysis.id}} {{period.key}}"
+      }
+    },
+    "runAndNotifyConfig": {
+      "locale": "pt-BR",
+      "timeoutSeconds": 3600,
+      "hideCommandIfSuccess": true,
+      "propagateExitCode": true,
+      "transports": {
+        "smtp": {
+          "enabled": true,
+          "host": "smtp.example.com",
+          "port": 587,
+          "secure": false,
+          "from": "manager@example.com",
+          "to": ["manager@example.com"],
+          "auth": {
+            "user": "manager@example.com",
+            "passEnvVar": "SMTP_PASS"
+          }
+        },
+        "slack": {
+          "enabled": false,
+          "tokenEnvVar": "SLACK_BOT_TOKEN",
+          "defaultChannel": "#manager-reports",
+          "thread": false
+        }
+      }
+    }
+  },
+  "analyses": [
+    {
+      "id": "plan-reviews",
+      "name": "Daily planning reviews",
+      "defaults": {
+        "analysisConfig": {
+          "prompts": [
+            "@DEFAULT_BASE_INSTRUCTIONS@",
+            "@DEFAULT_BASE_PROMPT@",
+            "plan-reviews/INSTRUCTIONS.md"
+          ],
+          "model": {
+            "provider": "openai-compatible",
+            "model": "gpt-5.4-mini"
+          }
+        }
+      },
+      "runs": [
+        {
+          "id": "workday",
+          "schedule": {
+            "kind": "workdays",
+            "time": "22:00"
+          },
+          "window": {
+            "date": "today"
+          }
+        }
+      ],
+      "rollups": [
+        {
+          "id": "weekly",
+          "schedule": {
+            "kind": "weekdays",
+            "weekdays": ["friday"],
+            "time": "18:30"
+          },
+          "window": {
+            "name": "previous-5-workdays"
+          },
+          "prompt": "plan-reviews/WEEKLY_REPORT.md",
+          "runAndNotifyConfig": {
+            "name": "Weekly planning review rollup"
+          }
+        }
+      ],
+      "maintenance": [
+        {
+          "id": "compact-state",
+          "kind": "compact-state",
+          "schedule": {
+            "kind": "weekdays",
+            "weekdays": ["saturday"],
+            "time": "08:00"
+          },
+          "keepRuns": 30,
+          "backup": true
+        }
+      ],
+      "targets": [
+        {
+          "id": "project-alpha",
+          "name": "Project Alpha",
+          "status": "active",
+          "analysisConfig": {
+            "channels": [
+              {
+                "id": "C_PROJECT_ALPHA",
+                "name": "project-alpha",
+                "kind": "channel",
+                "users": [
+                  {
+                    "id": "U_ALPHA_LEAD",
+                    "name": "Alpha Lead",
+                    "role": "lead engineer"
+                  },
+                  {
+                    "id": "U_ALPHA_ENGINEER_1",
+                    "name": "Alpha Engineer One",
+                    "role": "engineer"
+                  },
+                  {
+                    "id": "U_ALPHA_ENGINEER_2",
+                    "name": "Alpha Engineer Two",
+                    "role": "engineer"
+                  }
+                ]
+              }
+            ]
+          },
+          "runAndNotifyConfig": {
+            "name": "Project Alpha planning review",
+            "transports": {
+              "smtp": {
+                "to": ["manager+project-alpha@example.com", "lead+project-alpha@example.com"]
+              }
+            }
+          }
+        },
+        {
+          "id": "project-beta",
+          "name": "Project Beta",
+          "status": "active",
+          "analysisConfig": {
+            "channels": [
+              {
+                "id": "C_PROJECT_BETA",
+                "name": "project-beta",
+                "kind": "channel",
+                "users": [
+                  {
+                    "id": "U_BETA_LEAD",
+                    "name": "Beta Lead",
+                    "role": "lead engineer"
+                  },
+                  {
+                    "id": "U_BETA_DEVOPS",
+                    "name": "Beta Devops",
+                    "role": "devops"
+                  },
+                  {
+                    "id": "U_BETA_ENGINEER_1",
+                    "name": "Beta Engineer One",
+                    "role": "engineer"
+                  }
+                ]
+              }
+            ],
+            "context": {
+              "syntheticThreads": {
+                "candidateWindowMinutes": 90
+              }
+            }
+          },
+          "runAndNotifyConfig": {
+            "name": "Project Beta planning review",
+            "transports": {
+              "smtp": {
+                "to": ["manager+project-beta@example.com", "lead+project-beta@example.com"]
+              },
+              "slack": {
+                "enabled": true,
+                "defaultChannel": "#project-beta-reports"
+              }
+            }
+          }
+        },
+        {
+          "id": "product-web",
+          "name": "Product Web",
+          "status": "active",
+          "analysisConfig": {
+            "channels": [
+              {
+                "id": "C_PRODUCT_SHARED",
+                "name": "product-planning",
+                "kind": "channel",
+                "users": [
+                  {
+                    "id": "U_WEB_LEAD",
+                    "name": "Web Lead",
+                    "role": "lead engineer"
+                  },
+                  {
+                    "id": "U_WEB_ENGINEER_1",
+                    "name": "Web Engineer One",
+                    "role": "engineer"
+                  },
+                  {
+                    "id": "U_WEB_ENGINEER_2",
+                    "name": "Web Engineer Two",
+                    "role": "engineer"
+                  }
+                ]
+              }
+            ]
+          },
+          "runAndNotifyConfig": {
+            "name": "Product Web planning review",
+            "transports": {
+              "smtp": {
+                "to": ["manager+product-web@example.com", "lead+product-web@example.com"]
+              }
+            }
+          }
+        },
+        {
+          "id": "product-api",
+          "name": "Product API",
+          "status": "active",
+          "analysisConfig": {
+            "channels": [
+              {
+                "id": "C_PRODUCT_SHARED",
+                "name": "product-planning",
+                "kind": "channel",
+                "users": [
+                  {
+                    "id": "U_API_LEAD",
+                    "name": "API Lead",
+                    "role": "lead engineer"
+                  },
+                  {
+                    "id": "U_API_ENGINEER_1",
+                    "name": "API Engineer One",
+                    "role": "engineer"
+                  }
+                ]
+              },
+              {
+                "id": "C_PRODUCT_API",
+                "name": "product-api",
+                "kind": "channel",
+                "users": [
+                  {
+                    "id": "U_API_LEAD",
+                    "name": "API Lead",
+                    "role": "lead engineer"
+                  },
+                  {
+                    "id": "U_API_ENGINEER_1",
+                    "name": "API Engineer One",
+                    "role": "engineer"
+                  }
+                ]
+              }
+            ],
+            "model": {
+              "provider": "openai-compatible",
+              "model": "gpt-5.4"
+            }
+          },
+          "runAndNotifyConfig": {
+            "name": "Product API planning review",
+            "transports": {
+              "smtp": {
+                "to": [
+                  "manager+product-api@example.com",
+                  "lead+product-api@example.com",
+                  "backend-team@example.com"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "legacy-project",
+          "name": "Legacy Project",
+          "status": "archived",
+          "startedOn": "2026-01-01",
+          "endedOn": "2026-03-31",
+          "archiveReason": "Work moved into project-alpha."
+        }
+      ]
+    }
+  ]
+}

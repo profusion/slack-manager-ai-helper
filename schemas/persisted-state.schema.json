@@ -1,0 +1,501 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/barbieri/slack-manager-ai-helper/schemas/persisted-state.schema.json",
+  "description": "Persisted local state for one slack-manager-ai-helper topic. Version v1 stores run history with each run owning its evidence, model outputs, and memory.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "topicId", "runs"],
+  "properties": {
+    "version": {
+      "description": "Persisted-state format version. Version v1 stores nested run records.",
+      "const": "v1"
+    },
+    "topicId": {
+      "description": "Topic id this state file belongs to. It must match the loaded config to prevent mixing state between topics.",
+      "type": "string",
+      "minLength": 1
+    },
+    "runs": {
+      "description": "Append-only execution records for this topic.",
+      "type": "array",
+      "items": {
+        "description": "One CLI execution record with nested artifacts.",
+        "$ref": "#/$defs/run"
+      }
+    }
+  },
+  "$defs": {
+    "dateRange": {
+      "description": "Optional inclusive local-date range requested for an explicit run.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "startDate": {
+          "description": "Inclusive local start date in YYYY-MM-DD format.",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "endDate": {
+          "description": "Inclusive local end date in YYYY-MM-DD format.",
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      },
+      "anyOf": [{ "required": ["startDate"] }, { "required": ["endDate"] }]
+    },
+    "run": {
+      "description": "Execution metadata and nested artifacts for one CLI run.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "topicId",
+        "configHash",
+        "startedAt",
+        "status",
+        "executionMode",
+        "scanStartCursor",
+        "scanEndCursor",
+        "scanStartedAt",
+        "inputMessageCount",
+        "matchedMessageCount",
+        "evidenceMessageCount",
+        "modelCalled",
+        "memories",
+        "modelOutputs",
+        "evidenceMessages"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique run id generated when the run starts.",
+          "type": "string",
+          "minLength": 1
+        },
+        "topicId": {
+          "description": "Topic id from the config used for this run.",
+          "type": "string",
+          "minLength": 1
+        },
+        "configHash": {
+          "description": "Stable hash of the raw config used for this run.",
+          "type": "string",
+          "minLength": 1
+        },
+        "startedAt": {
+          "description": "ISO-like timestamp captured when the run started.",
+          "type": "string",
+          "minLength": 1
+        },
+        "finishedAt": {
+          "description": "ISO-like timestamp captured when the run finished.",
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "description": "Run lifecycle status.",
+          "enum": ["running", "completed", "failed"]
+        },
+        "errorMessage": {
+          "description": "Error message stored when the run failed.",
+          "type": "string"
+        },
+        "executionMode": {
+          "description": "Whether the run used an explicit date/window or an implicit run-derived window.",
+          "enum": ["explicit", "implicit"]
+        },
+        "requestedRange": {
+          "description": "Date range requested by the user for explicit runs.",
+          "$ref": "#/$defs/dateRange"
+        },
+        "scanStartCursor": {
+          "description": "Exclusive lower Slack timestamp cursor used for the scan, or null when scanning from the beginning.",
+          "anyOf": [
+            {
+              "description": "Exclusive lower Slack timestamp cursor.",
+              "type": "string"
+            },
+            {
+              "description": "No lower cursor; scan from the beginning.",
+              "type": "null"
+            }
+          ]
+        },
+        "scanEndCursor": {
+          "description": "Inclusive upper Slack timestamp cursor frozen at run start, or null when no upper cursor is available.",
+          "anyOf": [
+            {
+              "description": "Inclusive upper Slack timestamp cursor.",
+              "type": "string"
+            },
+            {
+              "description": "No upper cursor was available.",
+              "type": "null"
+            }
+          ]
+        },
+        "scanStartedAt": {
+          "description": "ISO-like timestamp captured when the scan window was established.",
+          "type": "string",
+          "minLength": 1
+        },
+        "scanEndedAt": {
+          "description": "ISO-like timestamp captured when the run finished scanning and analysis work.",
+          "type": "string",
+          "minLength": 1
+        },
+        "inputMessageCount": {
+          "description": "Number of Slack messages scanned from slacrawl for this run.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "matchedMessageCount": {
+          "description": "Number of scanned messages matched by deterministic matchers after date filtering.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "evidenceMessageCount": {
+          "description": "Number of evidence messages selected for model input.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelCalled": {
+          "description": "Whether this run called the LLM.",
+          "type": "boolean"
+        },
+        "memories": {
+          "description": "Memory records produced by this run.",
+          "type": "array",
+          "items": {
+            "description": "One stored memory snapshot or update.",
+            "$ref": "#/$defs/memory"
+          }
+        },
+        "modelOutputs": {
+          "description": "Model outputs produced by this run.",
+          "type": "array",
+          "items": {
+            "description": "One stored model output.",
+            "$ref": "#/$defs/modelOutput"
+          }
+        },
+        "evidenceMessages": {
+          "description": "Evidence messages used by this run.",
+          "type": "array",
+          "items": {
+            "description": "One Slack evidence message used in the run.",
+            "$ref": "#/$defs/evidenceMessage"
+          }
+        }
+      }
+    },
+    "memory": {
+      "description": "Persisted memory content extracted from model output.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "topicId",
+        "scope",
+        "scopeId",
+        "content",
+        "contentType",
+        "createdAt",
+        "runId"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique memory record id.",
+          "type": "string",
+          "minLength": 1
+        },
+        "topicId": {
+          "description": "Topic id this memory belongs to.",
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "description": "Memory scope, such as global, channel, user, or action.",
+          "type": "string",
+          "minLength": 1
+        },
+        "scopeId": {
+          "description": "Optional id for scoped memory, or null for global memory.",
+          "anyOf": [
+            {
+              "description": "Scope-specific id for channel, user, or action memory.",
+              "type": "string"
+            },
+            {
+              "description": "No scoped id for global memory.",
+              "type": "null"
+            }
+          ]
+        },
+        "content": {
+          "description": "Memory text to provide as context to later model calls.",
+          "type": "string"
+        },
+        "contentType": {
+          "description": "Content format label, currently text.",
+          "type": "string",
+          "minLength": 1
+        },
+        "createdAt": {
+          "description": "ISO-like timestamp when this memory was stored.",
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "description": "Run id that produced this memory.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "modelOutput": {
+      "description": "Stored raw model output and optional validation details.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "runId", "topicId", "outputText", "schemaValid", "createdAt"],
+      "properties": {
+        "id": {
+          "description": "Unique model-output record id.",
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "description": "Run id that produced this model output.",
+          "type": "string",
+          "minLength": 1
+        },
+        "topicId": {
+          "description": "Topic id this model output belongs to.",
+          "type": "string",
+          "minLength": 1
+        },
+        "outputText": {
+          "description": "Raw text returned by the model.",
+          "type": "string"
+        },
+        "reportText": {
+          "description": "Extracted markdown report section when present.",
+          "type": "string"
+        },
+        "outputJson": {
+          "description": "Parsed JSON memory/output object when present."
+        },
+        "schemaValid": {
+          "description": "Whether parsed JSON output satisfied the prompt schema, null when no validation was run.",
+          "anyOf": [
+            {
+              "description": "Validation result for parsed JSON output.",
+              "type": "boolean"
+            },
+            {
+              "description": "No schema validation was run.",
+              "type": "null"
+            }
+          ]
+        },
+        "schemaErrors": {
+          "description": "Ajv validation errors for parsed JSON output when validation failed."
+        },
+        "modelProvider": {
+          "description": "AI SDK provider id for the model that produced this stored report when the output can be summarized by one provider/model.",
+          "type": "string",
+          "minLength": 1
+        },
+        "modelName": {
+          "description": "Provider-specific model name that produced this stored report when the output can be summarized by one provider/model.",
+          "type": "string",
+          "minLength": 1
+        },
+        "modelAttempts": {
+          "description": "Total number of analysis model calls needed to produce this stored report, including retries and earlier fallback-chain attempts.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "modelCalls": {
+          "description": "Per-segment model execution metadata for calls that produced this stored report.",
+          "type": "array",
+          "items": {
+            "description": "One successful model call that contributed to the stored report.",
+            "$ref": "#/$defs/modelCall"
+          }
+        },
+        "usage": {
+          "description": "Provider-reported token usage for the model call or aggregated calls that produced this output.",
+          "$ref": "#/$defs/modelUsage"
+        },
+        "createdAt": {
+          "description": "ISO-like timestamp when this output was stored.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "modelCall": {
+      "description": "Model execution metadata for one successful report-producing analysis call.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "attempts"],
+      "properties": {
+        "segmentId": {
+          "description": "Model input segment id for segmented runs; omitted when not available.",
+          "type": "string",
+          "minLength": 1
+        },
+        "provider": {
+          "description": "AI SDK provider id used for this report-producing call.",
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "description": "Provider-specific model name used for this report-producing call.",
+          "type": "string",
+          "minLength": 1
+        },
+        "attempts": {
+          "description": "Number of analysis model calls needed before this call produced valid output, including retries and earlier fallback-chain attempts for this segment.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "modelUsage": {
+      "description": "Token usage reported by the model provider for this stored output.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "inputTokens": {
+          "description": "Total input tokens reported by the provider.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "description": "Total output tokens reported by the provider.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "description": "Total input plus output tokens reported by the provider.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "reasoningTokens": {
+          "description": "Reasoning output tokens reported by the provider, when available.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "cachedInputTokens": {
+          "description": "Cached input tokens read by the provider, when available.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "inputTokenDetails": {
+          "description": "Detailed input-token breakdown reported by the provider.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "noCacheTokens": {
+              "description": "Input tokens that were not served from cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheReadTokens": {
+              "description": "Input tokens read from provider cache.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "cacheWriteTokens": {
+              "description": "Input tokens written to provider cache.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "outputTokenDetails": {
+          "description": "Detailed output-token breakdown reported by the provider.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "textTokens": {
+              "description": "Visible text output tokens reported by the provider.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "reasoningTokens": {
+              "description": "Reasoning output tokens reported by the provider.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "raw": {
+          "description": "Raw provider usage payload, when available."
+        }
+      }
+    },
+    "evidenceMessage": {
+      "description": "Redacted Slack message included as model evidence.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "runId", "topicId", "channelId", "ts", "text", "source"],
+      "properties": {
+        "id": {
+          "description": "Stable evidence id in run-id:index form.",
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "description": "Run id that used this evidence.",
+          "type": "string",
+          "minLength": 1
+        },
+        "topicId": {
+          "description": "Topic id this evidence belongs to.",
+          "type": "string",
+          "minLength": 1
+        },
+        "channelId": {
+          "description": "Slack channel id containing the message.",
+          "type": "string",
+          "minLength": 1
+        },
+        "messageId": {
+          "description": "Slack or slacrawl message UUID when available.",
+          "type": "string"
+        },
+        "ts": {
+          "description": "Slack message timestamp used for ordering.",
+          "type": "string",
+          "minLength": 1
+        },
+        "threadTs": {
+          "description": "Slack thread timestamp when the message belongs to a thread.",
+          "type": "string"
+        },
+        "userId": {
+          "description": "Slack user id of the sender when available.",
+          "type": "string"
+        },
+        "type": {
+          "description": "Slack message type when available.",
+          "type": "string"
+        },
+        "subtype": {
+          "description": "Slack message subtype when available.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Redacted message text used as model evidence.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Why the message was included as evidence.",
+          "enum": ["match", "thread", "nearby", "synthetic_related"]
+        }
+      }
+    }
+  }
+}

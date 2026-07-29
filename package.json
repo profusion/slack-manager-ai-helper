@@ -1,0 +1,94 @@
+{
+  "name": "slack-manager-ai-helper",
+  "version": "0.1.0",
+  "description": "Helps people managers review team planning, track follow-ups, identify blockers and delivery risks, and maintain evolving context from Slack conversations.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/barbieri/slack-manager-ai-helper.git"
+  },
+  "type": "module",
+  "private": false,
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "cli",
+    "slack",
+    "analyze",
+    "analysis",
+    "manager",
+    "teams",
+    "ai",
+    "intelligence"
+  ],
+  "engines": {
+    "node": ">=26.4.0",
+    "pnpm": ">=11.9.0"
+  },
+  "packageManager": "pnpm@11.9.0",
+  "files": [
+    "dist/bundle",
+    "schemas",
+    "examples",
+    "scripts/ollama-classifier.sh",
+    "scripts/ollama-embeddings.sh",
+    ".env.example",
+    "LICENSE",
+    "README.md"
+  ],
+  "bin": {
+    "slack-manager-ai-helper": "dist/bundle/slack-manager-ai-helper.mjs"
+  },
+  "scripts": {
+    "build": "tsc && node scripts/build-cli.mjs",
+    "build:cli": "node scripts/build-cli.mjs",
+    "check": "biome check --error-on-warnings .",
+    "check:fix": "biome check --write --error-on-warnings .",
+    "format": "biome format --write .",
+    "lint": "biome lint --error-on-warnings .",
+    "ollama:classifier": "sh scripts/ollama-classifier.sh",
+    "ollama:embeddings": "sh scripts/ollama-embeddings.sh",
+    "qa": "run-p check build test typecheck",
+    "slack-manager-ai-helper": "node --import tsx src/slack-manager-ai-helper.ts",
+    "slack-manager-ai-helper:bundle": "node dist/bundle/slack-manager-ai-helper.mjs",
+    "test": "vitest run",
+    "test:ollama": "RUN_OLLAMA_TESTS=1 vitest run tests/ollama.integration.test.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "prepare": "node scripts/prepare.mjs",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.85",
+    "@ai-sdk/gateway": "^3.0.133",
+    "@ai-sdk/google": "^3.0.83",
+    "@ai-sdk/openai": "^3.0.73",
+    "@ai-sdk/xai": "^3.0.96",
+    "@inquirer/prompts": "^8.5.2",
+    "@openrouter/ai-sdk-provider": "^2.9.1",
+    "ai": "^6.0.208",
+    "ai-sdk-provider-opencode-sdk": "^3.0.6",
+    "ajv": "8.20.0",
+    "ajv-formats": "^3.0.1",
+    "chalk": "^5.6.2",
+    "dotenv": "^17.4.2",
+    "handlebars": "^4.7.9",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
+    "ollama-ai-provider-v2": "^3.6.0",
+    "pino": "^10.3.1",
+    "run-and-notify": "^0.1.1",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
+    "@tsconfig/strictest": "^2.0.8",
+    "@types/node": "^25.9.3",
+    "@types/yargs": "^17.0.35",
+    "esbuild": "^0.28.1",
+    "husky": "^9.1.7",
+    "npm-run-all": "^4.1.5",
+    "pino-pretty": "^13.1.3",
+    "tsx": "^4.22.4",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.9"
+  }
+}
