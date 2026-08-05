@@ -2,7 +2,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { type ConfigValidationError, loadConfig } from '../src/config/load-config.js';
+import {
+  type ConfigSemanticsError,
+  type ConfigValidationError,
+  loadConfig,
+  validateRawConfig,
+} from '../src/config/load-config.js';
 
 const execFileMock = vi.hoisted(() =>
   vi.fn(
@@ -97,6 +102,87 @@ describe('loadConfig', () => {
       ['metadata', '--json'],
       { encoding: 'utf8' },
       expect.any(Function),
+    );
+  });
+
+  it('expands alsoChannels into full channel configs with shared users and matchers', () => {
+    const config = validateRawConfig(
+      {
+        workspaceUrl: 'https://example.slack.com',
+        prompts: '@DEFAULT_BASE_INSTRUCTIONS@',
+        model: {
+          provider: 'openai',
+          model: 'gpt-test',
+        },
+        channels: [
+          {
+            id: 'C_PRIMARY',
+            name: 'primary',
+            kind: 'channel',
+            alsoChannels: [
+              { id: 'C_ALSO_A', name: 'also-a' },
+              { id: 'C_ALSO_B', kind: 'mpim' },
+            ],
+            users: [{ id: 'U1', name: 'Alice', role: 'engineer' }],
+            matchers: [{ id: 'plan', type: 'regex', pattern: 'plan' }],
+          },
+        ],
+      },
+      'also-channels-config',
+    );
+
+    expect(config.channels).toEqual([
+      {
+        id: 'C_PRIMARY',
+        name: 'primary',
+        kind: 'channel',
+        users: [{ id: 'U1', name: 'Alice', role: 'engineer' }],
+        matchers: [{ id: 'plan', type: 'regex', pattern: 'plan' }],
+      },
+      {
+        id: 'C_ALSO_A',
+        name: 'also-a',
+        kind: 'channel',
+        users: [{ id: 'U1', name: 'Alice', role: 'engineer' }],
+        matchers: [{ id: 'plan', type: 'regex', pattern: 'plan' }],
+      },
+      {
+        id: 'C_ALSO_B',
+        kind: 'mpim',
+        users: [{ id: 'U1', name: 'Alice', role: 'engineer' }],
+        matchers: [{ id: 'plan', type: 'regex', pattern: 'plan' }],
+      },
+    ]);
+  });
+
+  it('rejects alsoChannels that collide with another expanded channel id', () => {
+    expect(() =>
+      validateRawConfig(
+        {
+          workspaceUrl: 'https://example.slack.com',
+          prompts: '@DEFAULT_BASE_INSTRUCTIONS@',
+          model: {
+            provider: 'openai',
+            model: 'gpt-test',
+          },
+          channels: [
+            {
+              id: 'C_PRIMARY',
+              alsoChannels: [{ id: 'C_SHARED' }],
+            },
+            {
+              id: 'C_OTHER',
+              alsoChannels: [{ id: 'C_SHARED' }],
+            },
+          ],
+        },
+        'duplicate-also-channels-config',
+      ),
+    ).toThrowError(
+      expect.objectContaining({
+        name: 'ConfigSemanticsError',
+        message: expect.stringContaining('duplicate channel id C_SHARED'),
+      }) as ConfigSemanticsError,
     );
   });
 

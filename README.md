@@ -335,8 +335,13 @@ Top-level fields:
   `replacement`, and `additionalPatterns`; custom patterns use JavaScript RegExp source strings,
   optional flags, and always run with global/unicode flags.
 - `channels` is optional. When provided, it must contain at least one channel object with `id`.
-  Optional channel fields are `name`, `kind`, `users`, and `matchers`; `kind` must be `channel`,
-  `dm`, `mpim`, or `unknown`.
+  Optional channel fields are `name`, `kind`, `alsoChannels`, `users`, and `matchers`; `kind` must
+  be `channel`, `dm`, `mpim`, or `unknown`.
+- `channels[].alsoChannels` is optional. When provided, it is a non-empty array of additional Slack
+  sources that reuse the parent channel's `users` and `matchers`. Each entry requires `id` and may
+  set `name` and `kind`. At load time the loader expands each entry into a full channel config;
+  omitted `kind` inherits the parent channel kind when present. Expanded channel ids must be unique
+  across the whole config, including primary channel ids.
 - `channels[].matchers` is optional. When a configured channel has no applicable positive matchers
   from either `globalMatchers` or `channels[].matchers`, every eligible message in that channel
   becomes an anchor match after user filtering and excludes.

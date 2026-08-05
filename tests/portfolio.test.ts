@@ -196,6 +196,75 @@ describe('portfolio manifests', () => {
     ]);
   });
 
+  it('expands alsoChannels after applying common matchers', () => {
+    const manifest: PortfolioManifest = {
+      schemaVersion: 1,
+      defaults: {
+        analysisConfig: {
+          workspaceUrl: 'https://example.slack.com',
+          prompts: ['base.md'],
+          model: {
+            provider: 'openai',
+            model: 'base-model',
+          },
+        },
+        matchers: {
+          post: [
+            {
+              id: 'exclude_laughs',
+              type: 'exclude',
+              matcher: { id: 'laughs', type: 'regex', pattern: 'kk' },
+            },
+          ],
+        },
+      },
+      analyses: [
+        {
+          id: 'analysis',
+          name: 'Analysis',
+          targets: [
+            {
+              id: 'target',
+              name: 'Target',
+              status: 'active',
+              analysisConfig: {
+                channels: [
+                  {
+                    id: 'C_PRIMARY',
+                    name: 'primary',
+                    alsoChannels: [{ id: 'C_ALSO', name: 'also' }],
+                    users: [{ id: 'U1', name: 'Alice', role: 'engineer' }],
+                    matchers: [{ id: 'local', type: 'regex', pattern: 'plan' }],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const config = materializeAnalysisConfig({
+      manifest,
+      analysisId: 'analysis',
+      targetId: 'target',
+    });
+
+    expect(config.channels?.map((channel) => channel.id)).toEqual(['C_PRIMARY', 'C_ALSO']);
+    expect(config.channels?.[0]?.users).toEqual([{ id: 'U1', name: 'Alice', role: 'engineer' }]);
+    expect(config.channels?.[1]?.users).toEqual([{ id: 'U1', name: 'Alice', role: 'engineer' }]);
+    expect(config.channels?.[0]?.matchers?.map((matcher) => matcher.id)).toEqual([
+      'local',
+      'exclude_laughs',
+    ]);
+    expect(config.channels?.[1]?.matchers?.map((matcher) => matcher.id)).toEqual([
+      'local',
+      'exclude_laughs',
+    ]);
+    expect(config.channels?.[0]).not.toHaveProperty('alsoChannels');
+    expect(config.channels?.[1]).not.toHaveProperty('alsoChannels');
+  });
+
   it('supports target-specific run overrides', () => {
     const manifest: PortfolioManifest = {
       schemaVersion: 1,

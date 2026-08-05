@@ -59,10 +59,19 @@ export type MatcherConfig =
       readonly matcher: PositiveMatcherConfig;
     };
 
+export type ChannelSourceKind = 'channel' | 'dm' | 'mpim' | 'unknown';
+
+export type AlsoChannelConfig = {
+  readonly id: string;
+  readonly name?: string | undefined;
+  readonly kind?: ChannelSourceKind | undefined;
+};
+
 export type ChannelConfig = {
   readonly id: string;
   readonly name?: string | undefined;
-  readonly kind?: 'channel' | 'dm' | 'mpim' | 'unknown' | undefined;
+  readonly kind?: ChannelSourceKind | undefined;
+  readonly alsoChannels?: readonly AlsoChannelConfig[] | undefined;
   readonly users?: readonly ConfiguredUser[] | undefined;
   readonly matchers?: readonly MatcherConfig[] | undefined;
 };

@@ -10,6 +10,7 @@ For the original generic portfolio automation source spec and roadmap, see [`run
 - Include required root fields such as `workspaceUrl`, `prompts`, and `model` at shared defaults when targets only override channels or matchers.
 - Portfolio `defaults.matchers.pre/post` compose common matcher objects into every materialized channel matcher list after deep merge.
 - Use `defaults.matchers.pre/post` for shared suppressors such as `exclude_laughs`.
+- Target channel overrides may use `channels[].alsoChannels` so one user/matcher set covers multiple Slack sources. Portfolio materialization expands those entries through the shared config loader before validation against `schemas/config.schema.json`.
 - Validate the final materialized config shape through `schemas/config.schema.json`.
 - Portfolio `runAndNotifyConfig.name` defaults to the target display `name` when omitted.
 

@@ -440,6 +440,32 @@
           "description": "Slack source kind used to help the model understand whether the source is a channel, one-to-one direct message, multi-person direct message, or unknown. Use dm for Slack API im conversations.",
           "enum": ["channel", "dm", "mpim", "unknown"]
         },
+        "alsoChannels": {
+          "description": "Additional Slack sources that reuse this channel's users and matchers. At load time each entry expands into a full channel config with the same users and matchers; optional name and kind override only the expanded source identity. Expanded channel ids must be unique across the whole config.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "description": "One additional Slack source that inherits users and matchers from the parent channel.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id"],
+            "properties": {
+              "id": {
+                "description": "Slack channel, DM, or MPIM id as stored in the slacrawl database.",
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "description": "Optional human-readable Slack source name for the additional source.",
+                "type": "string"
+              },
+              "kind": {
+                "description": "Optional Slack source kind for the additional source. When omitted, the parent channel kind is reused when present.",
+                "enum": ["channel", "dm", "mpim", "unknown"]
+              }
+            }
+          }
+        },
         "users": {
           "description": "People whose messages are eligible as anchor matches for this source. When provided, source matchers, global matchers, and channel-level match-all behavior only match messages from these users. Thread, nearby, and synthetic-thread context can still include messages from any user.",
           "type": "array",

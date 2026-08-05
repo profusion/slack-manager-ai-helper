@@ -13,6 +13,7 @@
 - `channels` is optional; provide `channels`, `globalMatchers`, or both. When both are omitted, no Slack messages can match.
 - When `channels` is omitted, `globalMatchers` scan every Slack source in the slacrawl database but still require an explicit matcher hit. Use an explicit catch-all matcher such as regex `.*` if global matching should include every Slack source.
 - Channel `kind` uses `dm` for Slack API `im` one-to-one direct messages; `mpim` means multi-person direct message.
+- `channels[].alsoChannels` is an optional non-empty list of additional Slack sources that reuse the parent channel's `users` and `matchers`. Each entry requires `id` and may set `name` and `kind`. Config validation expands those entries into full channel configs before runtime matching; omitted `kind` inherits the parent channel kind when present. Expanded channel ids must be unique across the whole config.
 - `channels[].users` filters anchor matches together with source/global matchers; context expansion can include messages from any user.
 
 ## Prompt references

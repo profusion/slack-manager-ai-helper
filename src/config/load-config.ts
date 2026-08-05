@@ -12,6 +12,7 @@ import { logger } from '../logger.js';
 import type {
   AnalysisModelConfig,
   AppConfig,
+  ChannelConfig,
   ResolvedAppConfig,
   ResolvedConfig,
 } from '../types.js';
@@ -42,6 +43,16 @@ export class ConfigValidationError extends Error {
   }
 }
 
+export class ConfigSemanticsError extends Error {
+  readonly configPath: string;
+
+  constructor(configPath: string, message: string) {
+    super(`Invalid config ${configPath}: ${message}`);
+    this.name = 'ConfigSemanticsError';
+    this.configPath = configPath;
+  }
+}
+
 export async function loadConfig(configPath: string): Promise<ResolvedConfig> {
   const text = await readFile(configPath, 'utf8');
   const raw = parseJsonObject(text, configPath);
@@ -60,7 +71,87 @@ export function validateRawConfig(raw: Record<string, unknown>, configPath: stri
     throw new ConfigValidationError(configPath, [...(validateConfig.errors ?? [])]);
   }
 
-  return raw as AppConfig;
+  return expandAlsoChannels(raw as AppConfig, configPath);
+}
+
+export function expandAlsoChannels(config: AppConfig, configPath: string): AppConfig {
+  const channels = config.channels;
+  if (channels === undefined || channels.length === 0) {
+    return config;
+  }
+
+  const seenIds = new Set<string>();
+  return {
+    ...config,
+    channels: channels.flatMap((channel) => expandChannelEntry(channel, seenIds, configPath)),
+  };
+}
+
+function expandChannelEntry(
+  channel: ChannelConfig,
+  seenIds: Set<string>,
+  configPath: string,
+): readonly ChannelConfig[] {
+  const primary = channelWithoutAlsoChannels(channel);
+  registerExpandedChannelId(primary.id, seenIds, configPath);
+  const also = (channel.alsoChannels ?? []).map((entry) => {
+    registerExpandedChannelId(entry.id, seenIds, configPath);
+    return inheritChannelSettings(entry, primary);
+  });
+  return [primary, ...also];
+}
+
+function channelWithoutAlsoChannels(channel: ChannelConfig): ChannelConfig {
+  return {
+    id: channel.id,
+    ...optionalChannelFields(channel),
+  };
+}
+
+function inheritChannelSettings(
+  also: NonNullable<ChannelConfig['alsoChannels']>[number],
+  primary: ChannelConfig,
+): ChannelConfig {
+  return {
+    id: also.id,
+    ...(also.name !== undefined ? { name: also.name } : {}),
+    ...optionalInheritedKind(also.kind, primary.kind),
+    ...(primary.users !== undefined ? { users: primary.users } : {}),
+    ...(primary.matchers !== undefined ? { matchers: primary.matchers } : {}),
+  };
+}
+
+function optionalChannelFields(
+  channel: Pick<ChannelConfig, 'name' | 'kind' | 'users' | 'matchers'>,
+): Omit<ChannelConfig, 'id' | 'alsoChannels'> {
+  return {
+    ...(channel.name !== undefined ? { name: channel.name } : {}),
+    ...(channel.kind !== undefined ? { kind: channel.kind } : {}),
+    ...(channel.users !== undefined ? { users: channel.users } : {}),
+    ...(channel.matchers !== undefined ? { matchers: channel.matchers } : {}),
+  };
+}
+
+function optionalInheritedKind(
+  alsoKind: ChannelConfig['kind'],
+  primaryKind: ChannelConfig['kind'],
+): Pick<ChannelConfig, 'kind'> {
+  const kind = alsoKind ?? primaryKind;
+  return kind === undefined ? {} : { kind };
+}
+
+function registerExpandedChannelId(
+  channelId: string,
+  seenIds: Set<string>,
+  configPath: string,
+): void {
+  if (seenIds.has(channelId)) {
+    throw new ConfigSemanticsError(
+      configPath,
+      `duplicate channel id ${channelId} after expanding alsoChannels`,
+    );
+  }
+  seenIds.add(channelId);
 }
 
 export async function resolveConfigPaths(
