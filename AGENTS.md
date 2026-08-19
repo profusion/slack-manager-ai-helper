@@ -88,3 +88,13 @@ Read [`specs/README.md`](./specs/README.md) before changing a functional area, t
 - `pnpm run slack-manager-ai-helper validate-config --config examples/plan-reviews-config.json`
 
 See [`specs/cli-commands.md`](./specs/cli-commands.md) for command semantics and examples.
+
+## Cursor Cloud specific instructions
+
+Environment is prepared by the startup update script (Node per `.nvmrc`, corepack, `pnpm install`). Standard commands live in "Common commands" above and `package.json`; this section only records non-obvious cloud caveats.
+
+- **Node resolution**: the sandbox ships a default `node` (v22) that shadows the project's required Node 26 (`.nvmrc`). The agent's `~/.bashrc` prepends the nvm Node 26 bin so `node`, `pnpm`, and `corepack` resolve to the correct version in interactive shells. If `node -v` ever shows v22, run `nvm use` (from the repo root) before any project command. If `.nvmrc` bumps the Node version, update the `~/.bashrc` PATH line accordingly.
+- **pnpm via corepack**: Node 26 no longer bundles corepack, so it is installed globally (`npm i -g corepack`) and `corepack enable` provides the pinned `pnpm@11.9.0` from `packageManager`. Do not `npm i -g pnpm`; let corepack manage the version.
+- **TZ is required for the test suite**: many test fixtures assume the local timezone `America/Sao_Paulo` (hardcoded in tests, e.g. a message at epoch is expected on a specific local date, and `HH:MM` rendering is offset-sensitive). `~/.bashrc` exports `TZ=America/Sao_Paulo`, so `pnpm run qa`/`pnpm run test` pass. With `TZ` unset (UTC), ~13 date-window tests fail spuriously. Set `TZ=America/Sao_Paulo` before running tests if it is missing.
+- **Known pre-existing test failure**: `tests/manage-portfolio.test.ts > "prompts for guided runAndNotifyConfig when adding a target"` fails on an unmodified `master` (a wizard prompt-flow assertion, unrelated to environment setup). Expect `230 passed | 1 failed | 3 skipped`.
+- **Running the app end-to-end**: `run` executes the full pipeline (read slacrawl SQLite read-only → match → redact → compile prompt → call LLM) and needs an LLM provider credential (e.g. `OPENAI_API_KEY`) or a local Ollama server. Read-only commands (`collect-model-input`, `validate-config`, `inspect-config`, `resolve-evidence`) need no credentials and are the quickest way to exercise the core pipeline without a model. Point `storage.slacrawlDatabasePath` at a SQLite file to avoid needing the `slacrawl` CLI; the reader auto-detects the message table/columns.
