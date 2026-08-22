@@ -209,7 +209,9 @@ pause/resume/archive targets, configure `runAndNotifyConfig` with guided SMTP/Sl
 or raw JSON at portfolio/analysis/target scope, validate, and preview the same dry-run plan as
 `run-portfolio --dry-run`. Portfolio-default guided notification setup collects full transport
 settings; analysis and target guided setup collects only override fields such as SMTP `to` and Slack
-`defaultChannel` because those blocks deep-merge with parent config. Submenus include a back option so
+`defaultChannel` because those blocks deep-merge with parent config. Guided Slack setup can disable
+classic link/media previews via `transports.slack.unfurlLinks` and `transports.slack.unfurlMedia`
+(`false`/`false`), which `run-and-notify` forwards to Better Notify. Submenus include a back option so
 edit flows can return without saving changes. New target setup seeds user roles from sibling targets when available. New schedule
 prompts default to `22:00`. Saving validates the manifest first and writes a timestamped `.bak`
 beside an existing manifest before replacing it. Pass `--create` when the manifest path does not

@@ -97,7 +97,9 @@
           "enabled": false,
           "tokenEnvVar": "SLACK_BOT_TOKEN",
           "defaultChannel": "#manager-reports",
-          "thread": false
+          "thread": false,
+          "unfurlLinks": false,
+          "unfurlMedia": false
         }
       }
     }
@@ -244,7 +246,9 @@
               },
               "slack": {
                 "enabled": true,
-                "defaultChannel": "#project-beta-reports"
+                "defaultChannel": "#project-beta-reports",
+                "unfurlLinks": false,
+                "unfurlMedia": false
               }
             }
           }

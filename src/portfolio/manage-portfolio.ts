@@ -2110,11 +2110,13 @@ async function promptSlackTransport(
     message: 'Post notifications in a thread?',
     default: readJsonBoolean(initial, 'thread') ?? false,
   });
+  const unfurl = await promptSlackUnfurlOptions(prompts, initial);
   return {
     enabled: true,
     tokenEnvVar,
     defaultChannel,
     thread,
+    ...unfurl,
   };
 }
 
@@ -2131,11 +2133,32 @@ async function promptSlackTransportOverride(
     message: 'Post notifications in a thread?',
     default: readJsonBoolean(initial, 'thread') ?? false,
   });
+  const unfurl = await promptSlackUnfurlOptions(prompts, initial);
   return stripUndefinedObject({
     enabled: true,
     defaultChannel,
     ...(thread ? { thread } : {}),
+    ...unfurl,
   });
+}
+
+async function promptSlackUnfurlOptions(
+  prompts: PortfolioPromptApi,
+  initial: JsonObject | undefined,
+): Promise<{ readonly unfurlLinks: false; readonly unfurlMedia: false } | Record<string, never>> {
+  const disablePreviews = await prompts.confirm({
+    message: 'Disable Slack link/media previews (unfurl_links and unfurl_media)?',
+    default:
+      readJsonBoolean(initial, 'unfurlLinks') === false &&
+      readJsonBoolean(initial, 'unfurlMedia') === false,
+  });
+  if (disablePreviews) {
+    return {
+      unfurlLinks: false,
+      unfurlMedia: false,
+    };
+  }
+  return {};
 }
 
 function readTransports(initial: JsonObject): {

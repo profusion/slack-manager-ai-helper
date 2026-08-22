@@ -679,6 +679,61 @@ describe('manage portfolio wizard', () => {
     });
   });
 
+  it('stores Slack unfurl disable flags from guided transport prompts', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'smah-manage-portfolio-'));
+    tempDirs.push(dir);
+    const manifestPath = path.join(dir, 'portfolio.json');
+    await writeFile(manifestPath, `${JSON.stringify(createManifest(), null, 2)}\n`);
+
+    await runManagePortfolioWizard(
+      {
+        manifest: manifestPath,
+        now: new Date('2026-06-10T12:00:00.000Z'),
+      },
+      createPromptApi({
+        selects: [
+          'edit-notifications',
+          'target',
+          'guided',
+          'plan-reviews\u0000project-alpha',
+          'save-exit',
+        ],
+        inputs: ['Project Alpha', '#manager-reports'],
+        // SMTP? no; Slack? yes; thread? yes; disable unfurl previews? yes
+        confirms: [false, true, true, true],
+      }),
+    );
+
+    const saved = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      readonly analyses: readonly {
+        readonly targets: readonly {
+          readonly runAndNotifyConfig?: {
+            readonly transports?: {
+              readonly slack?: {
+                readonly enabled?: boolean;
+                readonly defaultChannel?: string;
+                readonly thread?: boolean;
+                readonly unfurlLinks?: boolean;
+                readonly unfurlMedia?: boolean;
+              };
+            };
+          };
+        }[];
+      }[];
+    };
+    expect(saved.analyses[0]?.targets[0]?.runAndNotifyConfig).toEqual({
+      transports: {
+        slack: {
+          enabled: true,
+          defaultChannel: '#manager-reports',
+          thread: true,
+          unfurlLinks: false,
+          unfurlMedia: false,
+        },
+      },
+    });
+  });
+
   it('registers the manage-portfolio command metadata', () => {
     expect(managePortfolioCommand.command).toBe('manage-portfolio');
     expect(managePortfolioCommand.describe).toContain('portfolio manifest');
