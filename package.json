@@ -1,6 +1,6 @@
 {
   "name": "slack-manager-ai-helper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Helps people managers review team planning, track follow-ups, identify blockers and delivery risks, and maintain evolving context from Slack conversations.",
   "repository": {
     "type": "git",
