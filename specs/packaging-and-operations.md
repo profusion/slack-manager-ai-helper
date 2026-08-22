@@ -19,6 +19,7 @@ Load API keys and `LOG_LEVEL` from a `.env` file in the project root via dotenv.
 
 ## npm publish
 
+- Development and release workflows use the versions pinned in `.nvmrc` and `packageManager`; the package `engines` fields enforce the same minimum Node.js and pnpm releases for consumers.
 - `prepublishOnly` runs `pnpm run build`, producing minified `dist/bundle/*.mjs` bundles with shebangs.
 - Bundled CLI shebangs come from the TypeScript entrypoint source.
 - Do not add an esbuild `banner` shebang because Node only accepts `#!` at byte 0 and duplicated shebangs break direct `node dist/bundle/*.mjs` execution.

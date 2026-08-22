@@ -486,12 +486,9 @@ function sampleConfig(channel: Omit<ChannelConfig, 'id'>): AppConfig {
 }
 
 function jsonResponse(body: unknown): Response {
-  return {
-    headers: new Headers(),
-    ok: true,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as Response;
+  return new Response(JSON.stringify(body), {
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 function ollamaEmbedResponse(embeddings: number[][]): unknown {
