@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import Handlebars from 'handlebars';
 import {
   type JsonObject,
   materializeRunAndNotifyConfig,
@@ -36,12 +37,17 @@ export type PortfolioNotificationResult =
   | {
       readonly status: 'skipped';
       readonly reason: 'not_published';
+    }
+  | {
+      readonly status: 'delivered_empty_report';
+      readonly exitCode: 0;
     };
 
 export async function notifyPortfolioAnalysisReport(input: {
   readonly manifest: PortfolioManifest;
   readonly task: Extract<PlannedPortfolioTask, { readonly type: 'analysis' | 'rollup' }>;
   readonly publication: PortfolioAnalysisReportPublication | undefined;
+  readonly hasReportText: boolean;
   readonly commandRunner?: PortfolioCommandRunner | undefined;
   readonly command?: string | undefined;
 }): Promise<PortfolioNotificationResult> {
@@ -50,6 +56,32 @@ export async function notifyPortfolioAnalysisReport(input: {
     input.publication.archiveRepoPath === undefined ||
     input.publication.reportPath === undefined
   ) {
+    if (input.hasReportText) {
+      return {
+        status: 'skipped',
+        reason: 'not_published',
+      };
+    }
+    const emptyReportMessage = renderEmptyReportMessage({
+      manifest: input.manifest,
+      task: input.task,
+    });
+    if (emptyReportMessage !== undefined) {
+      const result = await (input.commandRunner ?? defaultCommandRunner)(
+        input.command ?? resolveRunAndNotifyCommand(),
+        [
+          ...configToCliArgs(materializeNotificationConfig(input.manifest, input.task)),
+          '--',
+          'printf',
+          '%s\\n',
+          emptyReportMessage,
+        ],
+      );
+      if (result.exitCode === 0) {
+        return { status: 'delivered_empty_report', exitCode: 0 };
+      }
+      return { status: 'failed', exitCode: result.exitCode, stderr: result.stderr };
+    }
     return {
       status: 'skipped',
       reason: 'not_published',
@@ -57,18 +89,7 @@ export async function notifyPortfolioAnalysisReport(input: {
   }
 
   const reportPath = path.join(input.publication.archiveRepoPath, input.publication.reportPath);
-  const config = {
-    ...materializeRunAndNotifyConfig({
-      manifest: input.manifest,
-      analysisId: input.task.analysisId,
-      targetId: input.task.targetId,
-      runId: input.task.type === 'analysis' ? input.task.runId : undefined,
-      rollupId: input.task.type === 'rollup' ? input.task.rollupId : undefined,
-    }),
-    stdout: {
-      format: 'markdown',
-    },
-  };
+  const config = materializeNotificationConfig(input.manifest, input.task);
   const result = await (input.commandRunner ?? defaultCommandRunner)(
     input.command ?? resolveRunAndNotifyCommand(),
     [...configToCliArgs(config), '--', 'cat', reportPath],
@@ -84,6 +105,48 @@ export async function notifyPortfolioAnalysisReport(input: {
     exitCode: result.exitCode,
     stderr: result.stderr,
   };
+}
+
+function materializeNotificationConfig(
+  manifest: PortfolioManifest,
+  task: Extract<PlannedPortfolioTask, { readonly type: 'analysis' | 'rollup' }>,
+): JsonObject {
+  const { emptyReportMessageTemplate: _emptyReportMessageTemplate, ...runAndNotifyConfig } =
+    materializeRunAndNotifyConfig({
+      manifest,
+      analysisId: task.analysisId,
+      targetId: task.targetId,
+      runId: task.type === 'analysis' ? task.runId : undefined,
+      rollupId: task.type === 'rollup' ? task.rollupId : undefined,
+    });
+  return { ...runAndNotifyConfig, stdout: { format: 'markdown' } };
+}
+
+function renderEmptyReportMessage(input: {
+  readonly manifest: PortfolioManifest;
+  readonly task: Extract<PlannedPortfolioTask, { readonly type: 'analysis' | 'rollup' }>;
+}): string | undefined {
+  const config = materializeRunAndNotifyConfig({
+    manifest: input.manifest,
+    analysisId: input.task.analysisId,
+    targetId: input.task.targetId,
+    runId: input.task.type === 'analysis' ? input.task.runId : undefined,
+    rollupId: input.task.type === 'rollup' ? input.task.rollupId : undefined,
+  });
+  const { emptyReportMessageTemplate: template } = config;
+  if (template !== undefined && typeof template !== 'string') {
+    throw new Error('emptyReportMessageTemplate must be a string');
+  }
+  const target = input.manifest.analyses
+    .find((analysis) => analysis.id === input.task.analysisId)
+    ?.targets.find((candidate) => candidate.id === input.task.targetId);
+  if (!target) {
+    throw new Error(`Unknown portfolio target: ${input.task.targetId}`);
+  }
+  return Handlebars.compile(template ?? 'No daily reports found - {{project}}')({
+    project: target.name,
+    target: { id: target.id, name: target.name },
+  }).trim();
 }
 
 function resolveRunAndNotifyCommand(): string {

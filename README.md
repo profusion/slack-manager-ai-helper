@@ -410,7 +410,7 @@ Any configured prompt file may include one fenced `jsonschema` block. When prese
 defines the structured output `memory` field, and the analysis model is called through AI SDK
 structured output with a top-level `{ "memory": ..., "reportText": "..." }` object. The full
 object is still validated locally with Ajv, and `reportText` is additionally checked as non-empty
-Markdown that does not contain memory/jsonschema fenced blocks. Invalid output is stored with
+Markdown that does not contain memory/jsonschema fenced blocks or HTML tags. Invalid output is stored with
 validation errors; the run only fails when `model.failOnInvalidOutput` is `true`. In that mode,
 schema-invalid responses are retried with the validation errors according to `model.retries` before
 the runtime tries `model.fallback` or fails.
@@ -492,6 +492,8 @@ use `--date`, `--window`, or `--start-date`/`--end-date` for explicit local-date
 `run` writes only the extracted `reportText` to stdout, so it can be piped directly to notification
 tools. Metadata, scan cursors, evidence, memory, raw redacted model output, and schema validation
 status are stored in the state file.
+
+For portfolios, set `runAndNotifyConfig.emptyReportMessageTemplate` at the portfolio, analysis, target, or run level to send a notification when an analysis completes without a report. It defaults to `No daily reports found - {{project}}`; `{{project}}` is the target display name, and `{{target.name}}` / `{{target.id}}` are also available.
 
 To resolve a stored evidence id back to the Slack coordinates used for analysis, use:
 

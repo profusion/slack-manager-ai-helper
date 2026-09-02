@@ -20,6 +20,7 @@
 
 - `config.prompts` is either one prompt reference or an ordered array of prompt references; resolved configs normalize it to an array and prompt content is concatenated in order.
 - `@DEFAULT_BASE_INSTRUCTIONS@` and `@DEFAULT_BASE_PROMPT@` expand to inline built-in prompts; other prompt references are Markdown paths resolved relative to the config file.
+- `@DEFAULT_BASE_INSTRUCTIONS@` requires pure CommonMark Markdown in `reportText`: no HTML tags, comments, entities, CSS classes, or HTML layout constructs. Use Markdown headings, lists, links, emphasis, and blank lines instead.
 - Prompt files are scanned for fenced `json` and `jsonschema` blocks before model calls; those blocks must be valid JSON and are minified to reduce context size.
 - Prompts that need both durable memory and a forwardable report should include one fenced `jsonschema` block for the memory object. Runtime wraps that schema in an AI SDK structured output object with top-level `memory` and `reportText`; local Ajv validation still checks the full object and markdown report before persistence.
 - `model.minReportWords` defaults to `25`. Structured `reportText` must contain at least that many meaningful words: runs of four or more alphabetic characters after Markdown formatting, links, URLs, code fences, and punctuation are removed.

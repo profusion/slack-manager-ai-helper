@@ -26,6 +26,7 @@ For the original generic portfolio automation source spec and roadmap, see [`run
 - Only paths that `git status --porcelain` reports as changed are staged and committed. Gitignored paths (for example maintenance `*.bak` backups when `*.bak` is ignored) are skipped so `git add` does not fail after partial staging and leave the commit uncreated.
 - Report publishing must not create one commit per report.
 - Successful published reports deliver through `run-and-notify` using dotted CLI config arguments.
+- When an analysis completes without a report, notification delivery sends `emptyReportMessageTemplate` instead of silently skipping it. The template is inherited through `runAndNotifyConfig` (portfolio defaults, analysis defaults, target, then run-specific overrides) and defaults to `No daily reports found - {{project}}`. Templates receive `project` as the target display name and `target.id` / `target.name`. The template is internal to portfolio execution and is never forwarded to `run-and-notify`.
 - `run-portfolio --concurrency N` means up to `N` analysis/target lanes run in parallel.
 - Tasks for the same `analysisId/targetId` remain ordered so analysis, rollup, and maintenance cannot overtake each other.
 - `run-portfolio --date` overrides planned task windows and applies schedule-aware task selection for that local day without requiring `--due`.

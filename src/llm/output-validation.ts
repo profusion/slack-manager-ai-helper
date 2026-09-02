@@ -79,6 +79,10 @@ function validateReportMarkdown(
     errors.push({ message: 'reportText must not include memory or jsonschema fenced blocks' });
   }
 
+  if (/<\/?[a-z][^>]*>/iu.test(reportText)) {
+    errors.push({ message: 'reportText must use Markdown, not HTML tags' });
+  }
+
   return errors;
 }
 

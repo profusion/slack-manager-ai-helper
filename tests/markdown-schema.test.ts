@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { defaultBaseInstructionsReference, readDefaultPrompt } from '../src/llm/default-prompts.js';
 import {
   extractJsonSchemaBlock,
   extractMemorySection,
@@ -8,6 +9,15 @@ import {
 } from '../src/llm/markdown-schema.js';
 
 describe('markdown schema extraction', () => {
+  it('makes pure Markdown a base instruction for every configured analysis', () => {
+    expect(readDefaultPrompt(defaultBaseInstructionsReference)).toContain(
+      'pure CommonMark Markdown',
+    );
+    expect(readDefaultPrompt(defaultBaseInstructionsReference)).toContain(
+      'never use markup such as <br>',
+    );
+  });
+
   it('extracts jsonschema fenced blocks', () => {
     const schema = extractJsonSchemaBlock('x\n```jsonschema\n{"type":"object"}\n```');
 

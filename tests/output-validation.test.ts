@@ -165,4 +165,19 @@ describe('output validation', () => {
     expect(result.schemaValid).toBe(false);
     expect(JSON.stringify(result.schemaErrors)).toContain('jsonschema fenced blocks');
   });
+
+  it('rejects HTML tags inside structured markdown reports', () => {
+    const result = validateModelOutput(
+      { memory: { status: 'ok' }, reportText: '<br>Detailed report with sufficient evidence.' },
+      {
+        type: 'object',
+        required: ['memory', 'reportText'],
+        properties: { memory: { type: 'object' }, reportText: { type: 'string' } },
+      },
+      1,
+    );
+
+    expect(result.schemaValid).toBe(false);
+    expect(JSON.stringify(result.schemaErrors)).toContain('Markdown, not HTML');
+  });
 });

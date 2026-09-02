@@ -35,7 +35,7 @@ export async function compilePrompts(
       [
         'Return one JSON object with exactly two top-level fields: memory and reportText.',
         'The memory field must be a JSON object matching the output memory schema.',
-        'The reportText field must be a non-empty Markdown report string.',
+        'The reportText field must be a non-empty Markdown report string. Do not use HTML tags.',
         'Do not wrap the response in Markdown fences.',
       ].join(' '),
       '# OUTPUT MEMORY JSON SCHEMA',

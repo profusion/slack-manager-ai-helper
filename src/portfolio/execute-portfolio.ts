@@ -340,6 +340,7 @@ async function executeRollupTask(input: {
             manifest: options.manifest,
             task,
             publication,
+            hasReportText: result.modelCalled && result.reportText !== undefined,
           })
         : undefined;
 
@@ -405,6 +406,7 @@ async function executeAnalysisTask(input: {
             manifest: options.manifest,
             task,
             publication,
+            hasReportText: result.reportText !== undefined,
           })
         : undefined;
 

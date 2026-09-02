@@ -39,6 +39,7 @@ describe('notifyPortfolioAnalysisReport', () => {
     const result = await notifyPortfolioAnalysisReport({
       manifest,
       task,
+      hasReportText: true,
       publication: {
         status: 'published',
         archiveRepoPath,
@@ -70,6 +71,7 @@ describe('notifyPortfolioAnalysisReport', () => {
     const result = await notifyPortfolioAnalysisReport({
       manifest,
       task: analysisTask(manifest),
+      hasReportText: true,
       publication: {
         status: 'published',
         archiveRepoPath: '/tmp/archive',
@@ -92,6 +94,7 @@ describe('notifyPortfolioAnalysisReport', () => {
     await notifyPortfolioAnalysisReport({
       manifest,
       task: rollupTask(manifest),
+      hasReportText: true,
       publication: {
         status: 'published',
         archiveRepoPath: '/tmp/archive',
@@ -115,21 +118,64 @@ describe('notifyPortfolioAnalysisReport', () => {
     ]);
   });
 
-  it('skips notification when no report was published', async () => {
+  it('sends the default no-report message when no report was published', async () => {
     const manifest = createNotifyManifest();
+    const calls: string[][] = [];
     await expect(
       notifyPortfolioAnalysisReport({
         manifest,
         task: analysisTask(manifest),
-        publication: {
-          status: 'skipped',
-          reason: 'no_report',
+        hasReportText: false,
+        publication: { status: 'skipped', reason: 'no_report' },
+        commandRunner: async (_command, args) => {
+          calls.push([...args]);
+          return { exitCode: 0, stdout: '', stderr: '' };
         },
       }),
     ).resolves.toEqual({
-      status: 'skipped',
-      reason: 'not_published',
+      status: 'delivered_empty_report',
+      exitCode: 0,
     });
+    expect(calls[0]?.slice(-4)).toEqual([
+      '--',
+      'printf',
+      '%s\\n',
+      'No daily reports found - Target',
+    ]);
+  });
+
+  it('uses a target-level no-report message template', async () => {
+    const manifest = createNotifyManifestWithEmptyReportMessage();
+    const calls: string[][] = [];
+
+    await notifyPortfolioAnalysisReport({
+      manifest,
+      task: analysisTask(manifest),
+      hasReportText: false,
+      publication: { status: 'skipped', reason: 'no_report' },
+      commandRunner: async (_command, args) => {
+        calls.push([...args]);
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+    });
+
+    expect(calls[0]?.at(-1)).toBe('Nothing for Target (target)');
+  });
+
+  it('does not send a no-report message when report publication is disabled', async () => {
+    const manifest = createNotifyManifest();
+
+    await expect(
+      notifyPortfolioAnalysisReport({
+        manifest,
+        task: analysisTask(manifest),
+        publication: undefined,
+        hasReportText: true,
+        commandRunner: async () => {
+          throw new Error('notification should be skipped');
+        },
+      }),
+    ).resolves.toEqual({ status: 'skipped', reason: 'not_published' });
   });
 });
 
@@ -222,6 +268,32 @@ function createNotifyManifest(): PortfolioManifest {
                   to: ['target@example.com'],
                 },
               },
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function createNotifyManifestWithEmptyReportMessage(): PortfolioManifest {
+  const manifest = createNotifyManifest();
+  const [analysis] = manifest.analyses;
+  const [target] = analysis?.targets ?? [];
+  if (!analysis || !target) {
+    throw new Error('Expected target');
+  }
+  return {
+    ...manifest,
+    analyses: [
+      {
+        ...analysis,
+        targets: [
+          {
+            ...target,
+            runAndNotifyConfig: {
+              ...target.runAndNotifyConfig,
+              emptyReportMessageTemplate: 'Nothing for {{target.name}} ({{target.id}})',
             },
           },
         ],
