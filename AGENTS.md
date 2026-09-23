@@ -45,6 +45,7 @@ Read [`specs/README.md`](./specs/README.md) before changing a functional area, t
 - `examples/` contains full and minimal JSON config variants per topic.
 - Example-specific prompt files live beside their examples under `examples/<topic>/`.
 - `specs/` contains durable functional specifications. Keep those files current when behavior changes.
+- Read the matching playbook under `skills/` when asked to manage portfolio resources or change this repository.
 
 ## Tooling
 

@@ -1,5 +1,3 @@
-import { constants } from 'node:fs';
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   checkbox,
@@ -24,6 +22,17 @@ import type { AppConfig, ChannelConfig, ConfiguredUser, ResolvedConfig } from '.
 import { hashJson, parseJsonObject } from '../utils/json.js';
 import { resolveLocalTimeZone } from '../utils/local-time.js';
 import {
+  applyMemberMove,
+  overrideChannelsFromTarget,
+  readEditableManifest,
+  resolveCliPath,
+  saveManifest,
+  stripUndefinedObject,
+  updateTargetChannels,
+  validateManifest,
+  withChannelUsers,
+} from './edit-portfolio.js';
+import {
   type JsonObject,
   materializeAnalysisConfig,
   type PortfolioAnalysis,
@@ -32,9 +41,19 @@ import {
   type PortfolioRollup,
   type PortfolioRun,
   type PortfolioTarget,
-  validateRawPortfolioManifest,
 } from './load-portfolio.js';
 import { planPortfolioDryRun } from './plan-portfolio.js';
+
+export {
+  applyMemberMove,
+  overrideChannelsFromTarget,
+  resolveCliPath,
+  saveManifest,
+  stripUndefinedObject,
+  timestampForBackup,
+  updateTargetChannels,
+  withChannelUsers,
+} from './edit-portfolio.js';
 
 type WizardAction =
   | 'list'
@@ -91,7 +110,6 @@ const defaultPrompts: PortfolioPromptApi = {
   checkbox,
   search,
 };
-const initCwdEnvKey = 'INIT_CWD';
 const BACK = '__back__' as const;
 
 type TargetSelection = {
@@ -302,57 +320,6 @@ function applyOptionalManifestUpdate(
     manifest: updated,
     dirty: true,
   };
-}
-
-function resolveCliPath(input: string): string {
-  if (path.isAbsolute(input)) {
-    return input;
-  }
-  return path.resolve(process.env[initCwdEnvKey] ?? process.cwd(), input);
-}
-
-async function readEditableManifest(
-  manifestPath: string,
-  createIfMissing: boolean,
-): Promise<PortfolioManifest> {
-  if (!(await fileExists(manifestPath))) {
-    if (!createIfMissing) {
-      throw new Error(
-        `Portfolio manifest not found: ${manifestPath}. Pass --create to start a new manifest.`,
-      );
-    }
-    return {
-      schemaVersion: 1,
-      analyses: [],
-    };
-  }
-
-  const text = await readFile(manifestPath, 'utf8');
-  return validateManifest(parseJsonObject(text, manifestPath), manifestPath);
-}
-
-function validateManifest(raw: unknown, manifestPath: string): PortfolioManifest {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error(`Invalid portfolio manifest ${manifestPath}: expected JSON object`);
-  }
-  return validateRawPortfolioManifest(raw as Record<string, unknown>, manifestPath);
-}
-
-async function saveManifest(
-  manifestPath: string,
-  manifest: PortfolioManifest,
-  now: Date,
-): Promise<string | null> {
-  validateManifest(manifest, manifestPath);
-  await mkdir(path.dirname(manifestPath), { recursive: true });
-  const backupPath = (await fileExists(manifestPath))
-    ? `${manifestPath}.${timestampForBackup(now)}.bak`
-    : null;
-  if (backupPath) {
-    await copyFile(manifestPath, backupPath);
-  }
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-  return backupPath;
 }
 
 function actionChoices(manifest: PortfolioManifest) {
@@ -949,41 +916,6 @@ async function moveMemberBetweenTargets(
   return nextManifest;
 }
 
-export function applyMemberMove(input: {
-  readonly manifest: PortfolioManifest;
-  readonly sourceAnalysisId: string;
-  readonly sourceTargetId: string;
-  readonly destinationAnalysisId: string;
-  readonly destinationTargetId: string;
-  readonly member: ConfiguredUser;
-}): PortfolioManifest {
-  const withoutOnSource = updateTargetChannels(
-    input.manifest,
-    input.sourceAnalysisId,
-    input.sourceTargetId,
-    (channels) =>
-      channels.map((channel) =>
-        withChannelUsers(
-          channel,
-          (channel.users ?? []).filter((user) => user.id !== input.member.id),
-        ),
-      ),
-  );
-  return updateTargetChannels(
-    withoutOnSource,
-    input.destinationAnalysisId,
-    input.destinationTargetId,
-    (channels) =>
-      channels.map((channel) => {
-        const existing = channel.users ?? [];
-        if (existing.some((user) => user.id === input.member.id)) {
-          return channel;
-        }
-        return withChannelUsers(channel, [...existing, input.member]);
-      }),
-  );
-}
-
 async function setTargetStatus(
   manifest: PortfolioManifest,
   prompts: PortfolioPromptApi,
@@ -1531,16 +1463,6 @@ function ensureTargetPresent(
   });
 }
 
-function stripUndefinedObject(input: JsonObject): JsonObject {
-  const output: JsonObject = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (value !== undefined) {
-      output[key] = value;
-    }
-  }
-  return output;
-}
-
 function refreshTargetSelection(
   manifest: PortfolioManifest,
   selection: TargetSelection,
@@ -1551,11 +1473,6 @@ function refreshTargetSelection(
     return null;
   }
   return { analysis, target };
-}
-
-function overrideChannelsFromTarget(target: PortfolioTarget): readonly ChannelConfig[] {
-  const channels = readJsonArray(target.analysisConfig, 'channels');
-  return channels.filter(isChannelConfig);
 }
 
 function collectSiblingTargetChannels(
@@ -1572,10 +1489,6 @@ function collectSiblingTargetChannels(
   return channels;
 }
 
-function isChannelConfig(value: unknown): value is ChannelConfig {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'id' in value);
-}
-
 function isConfiguredUser(value: unknown): value is ConfiguredUser {
   return Boolean(
     value &&
@@ -1586,7 +1499,7 @@ function isConfiguredUser(value: unknown): value is ConfiguredUser {
   );
 }
 
-function collectTargetMembers(target: PortfolioTarget): readonly ConfiguredUser[] {
+export function collectTargetMembers(target: PortfolioTarget): readonly ConfiguredUser[] {
   const byId = new Map<string, ConfiguredUser>();
   for (const channel of overrideChannelsFromTarget(target)) {
     for (const user of channel.users ?? []) {
@@ -1611,46 +1524,11 @@ function collectKnownRoles(channels: readonly ChannelConfig[]): Set<string> {
   );
 }
 
-function withChannelUsers(channel: ChannelConfig, users: readonly ConfiguredUser[]): ChannelConfig {
-  const { users: _removed, ...rest } = channel;
-  if (users.length === 0) {
-    return rest;
-  }
-  return {
-    ...rest,
-    users,
-  };
-}
-
-function updateTargetChannels(
-  manifest: PortfolioManifest,
-  analysisId: string,
-  targetId: string,
-  update: (channels: readonly ChannelConfig[]) => readonly ChannelConfig[],
-): PortfolioManifest {
-  return updateTarget(manifest, analysisId, targetId, (target) => {
-    const nextChannels = update(overrideChannelsFromTarget(target));
-    const currentOverride = target.analysisConfig ?? {};
-    const analysisConfig = stripUndefinedObject({
-      ...currentOverride,
-      channels: nextChannels.length > 0 ? nextChannels : undefined,
-    });
-    if (Object.keys(analysisConfig).length === 0) {
-      const { analysisConfig: _removed, ...rest } = target;
-      return rest;
-    }
-    return {
-      ...target,
-      analysisConfig,
-    };
-  });
-}
-
 function configuredChannelLabel(channel: ChannelConfig): string {
   return channel.name ? `#${channel.name} (${channel.id})` : channel.id;
 }
 
-function configuredUserLabel(user: ConfiguredUser): string {
+export function configuredUserLabel(user: ConfiguredUser): string {
   const base = user.name ? `${user.name} (${user.id})` : user.id;
   return user.role ? `${base} [${user.role}]` : base;
 }
@@ -2191,11 +2069,6 @@ function readJsonBoolean(object: JsonObject | undefined, key: string): boolean |
   return typeof value === 'boolean' ? value : undefined;
 }
 
-function readJsonArray(object: JsonObject | undefined, key: string): readonly unknown[] {
-  const value = readJsonValue(object, key);
-  return Array.isArray(value) ? value : [];
-}
-
 function setJsonObjectProperty(object: JsonObject, key: string, value: unknown): void {
   object[key] = value;
 }
@@ -2495,22 +2368,6 @@ function printPreview(manifest: PortfolioManifest, manifestPath: string, now: Da
     localTimeZone,
   });
   console.log(JSON.stringify(plan, null, 2));
-}
-
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function timestampForBackup(now: Date): string {
-  return now
-    .toISOString()
-    .replaceAll(':', '-')
-    .replace(/\.\d{3}Z$/, 'Z');
 }
 
 function localDateForBackup(now: Date): string {

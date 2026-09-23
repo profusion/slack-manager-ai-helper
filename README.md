@@ -586,3 +586,24 @@ start a server.
 - Alternative: `smollm2:360m` (726 MB)
 - Heavy but safe: `llama3.2:1b` (1.3 GB)
 - Heavy: `llama3.2:3b` (2.0 GB)
+
+## Agent skills
+
+Install the repository's portable agent playbooks with:
+
+```bash
+npx skills add profusion/slack-manager-ai-helper
+```
+
+`portfolio-resource` covers non-interactive portfolio member operations and lifecycle transitions. `slack-manager-ai-helper-dev` covers repository conventions, specs, tests, packaging, and QA. Install only the portfolio playbook with `npx skills add profusion/slack-manager-ai-helper --skill portfolio-resource`.
+
+### Non-interactive portfolio members
+
+```bash
+pnpm run slack-manager-ai-helper portfolio-resource list --manifest portfolio.json
+pnpm run slack-manager-ai-helper portfolio-resource add --manifest portfolio.json --target team-b --user U1 --channel C2
+pnpm run slack-manager-ai-helper portfolio-resource remove --manifest portfolio.json --target team-a --user U1
+pnpm run slack-manager-ai-helper portfolio-resource move --manifest portfolio.json --from team-a --to team-b --user U1 --dry-run
+```
+
+Add, remove, and move automatically pause active targets that become empty and activate paused targets receiving their first member. Archived targets are unchanged. JSON output reports transitions in `detail.statusChanges`; pass `--no-auto-status` to preserve statuses.

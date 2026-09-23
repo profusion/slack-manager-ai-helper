@@ -9,6 +9,7 @@ import { createConfigCommand } from './commands/create-config.js';
 import { editConfigCommand } from './commands/edit-config.js';
 import { inspectConfigCommand } from './commands/inspect-config.js';
 import { managePortfolioCommand } from './commands/manage-portfolio.js';
+import { portfolioResourceCommand } from './commands/portfolio-resource.js';
 import { resolveEvidenceCommand } from './commands/resolve-evidence.js';
 import { runCommand } from './commands/run.js';
 import { runPortfolioCommand } from './commands/run-portfolio.js';
@@ -30,6 +31,7 @@ async function main(): Promise<void> {
     .command(unifiedReportCommand)
     .command(runPortfolioCommand)
     .command(managePortfolioCommand)
+    .command(portfolioResourceCommand)
     .command(validateConfigCommand)
     .demandCommand(1, 'Choose a command.')
     .strict()

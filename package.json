@@ -28,6 +28,8 @@
     "dist/bundle",
     "schemas",
     "examples",
+    "skills",
+    "skills.sh.json",
     "scripts/ollama-classifier.sh",
     "scripts/ollama-embeddings.sh",
     ".env.example",

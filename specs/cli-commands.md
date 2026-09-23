@@ -75,3 +75,23 @@ Use `pnpm run slack-manager-ai-helper <command>` during local development, or th
 - `pnpm run test:ollama` runs optional localhost Ollama scored-matcher integration tests; it is not part of normal `pnpm run qa`.
 - Keep Ollama tests sequential and avoid parallel Ollama requests.
 - Tune Ollama tests with `OLLAMA_TEST_TIMEOUT_MS` and `OLLAMA_PROVIDER_TIMEOUT_MS` when local models are slow.
+
+## `portfolio-resource`
+
+`portfolio-resource <action> --manifest <path>` lists and edits portfolio channel membership without prompts. Relative manifest paths use `INIT_CWD` when set, otherwise the current directory. `--analysis <id>` selects an analysis; it may be omitted only when the manifest has one analysis. `--dry-run` validates and computes edits without writing or creating a backup.
+
+Actions:
+
+- `list [--target <id>]` prints targets, channels, and users.
+- `add --target <id> --user <id-or-name> --channel <id> [--role <role>]` adds a user. IDs take precedence over case-insensitive exact full-name matches. The explicit role wins, then a known manifest role is reused.
+- `remove --target <id> --user <id-or-name> [--channel <id>]` removes the user from all target channels, or only the selected channel.
+- `move --from <target-id> --to <target-id> --user <id-or-name>` removes the user from every source override and adds them to every destination override, skipping duplicates.
+
+Successful output is one JSON object with the action, resolved paths and user, affected targets/channels, change state, dry-run state, and backup path. After any add, remove, or move, an `active` affected target with no configured users across its channel overrides becomes `paused`; a `paused` target that had no members and receives its first member becomes `active`. Archived targets and all other status values are untouched. Moves evaluate both source and destination. `--no-auto-status` disables these transitions. Mutation output always includes `detail.statusChanges`, which is an array of `{ targetId, from, to }` objects and is empty when no transition occurs. Writes use the same validation and timestamped backup behavior as `manage-portfolio`.
+
+```bash
+pnpm run slack-manager-ai-helper portfolio-resource list --manifest portfolio.json
+pnpm run slack-manager-ai-helper portfolio-resource add --manifest portfolio.json --target team-b --user 'Ada Lovelace' --channel C2
+pnpm run slack-manager-ai-helper portfolio-resource remove --manifest portfolio.json --target team-a --user U1 --channel C1
+pnpm run slack-manager-ai-helper portfolio-resource move --manifest portfolio.json --from team-a --to team-b --user U1 --dry-run
+```
