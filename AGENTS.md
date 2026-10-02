@@ -2,6 +2,17 @@
 
 This file is the canonical guide for humans and coding agents working in this repository. Keep it focused on agent workflow, repo navigation, and contribution requirements. Durable product and runtime specifications live under [`specs/`](./specs/).
 
+## Agent workflow and PR readiness
+
+- For nontrivial implementation, load `.agents/skills/poteto-mode/SKILL.md` before work and run `.agents/skills/thermos/SKILL.md` before handoff. Review a PR against its merge-base with `.agents/skills/code-review/SKILL.md` when an originating spec exists. Its GitHub issue source is `docs/agents/issue-tracker.md`.
+- For Codex, use native subagents for upstream `Task` roles. In Thermos,
+  give one reviewer `.agents/skills/thermo-nuclear-review/SKILL.md` and another
+  `.agents/skills/thermo-nuclear-code-quality-review/SKILL.md`, then synthesize
+  their findings.
+- Before publishing, inspect every commit and the final diff. Fold a correction to code introduced earlier on this branch into the introducing commit with a fixup and autosquash. Keep an independent improvement or a fix to base-branch code as a separate commit. Use `.agents/skills/git-history-cleanup/SKILL.md` for a private linear series that needs broader regrouping.
+- Add a test only when it proves distinct behavior or a regression that existing tests do not cover. Keep existing QA and coverage gates.
+- After a failed check, PR review, or chat feedback, reflect on any durable lesson and update its owning documentation in the relevant original commit. Use `.agents/skills/reflect/SKILL.md` when its trigger applies. Never self-update non-owned installed skills under `~/.agent/skills/`, `~/.agents/skills/`, or project `.agents/skills/` tracked by a skill lock. For owned skills, edit source in `barbieri-playground/skills`, open a PR for Gustavo to review, and update consumers only after merge.
+
 ## Self-update protocol (required)
 
 When you learn something durable about this project, update the documentation source that owns it in the same change before finishing the task:
