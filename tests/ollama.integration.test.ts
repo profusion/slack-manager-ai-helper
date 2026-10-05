@@ -3,7 +3,7 @@ import { matchesWithProviders } from '../src/matching/matchers.js';
 import type { AppConfig, MatcherConfig, SlackMessage } from '../src/types.js';
 
 const runOllamaTests = readEnv('RUN_OLLAMA_TESTS') === '1';
-const describeIfOllama = runOllamaTests ? describe.sequential : describe.skip;
+const describeIfOllama = runOllamaTests ? describe : describe.skip;
 const ollamaTestTimeoutMs = Number(readEnv('OLLAMA_TEST_TIMEOUT_MS') ?? 180_000);
 const ollamaProviderTimeoutMs = Number(readEnv('OLLAMA_PROVIDER_TIMEOUT_MS') ?? 120_000);
 
