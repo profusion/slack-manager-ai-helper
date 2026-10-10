@@ -698,7 +698,7 @@ describe('manage portfolio wizard', () => {
           'plan-reviews\u0000project-alpha',
           'save-exit',
         ],
-        inputs: ['Project Alpha', '#manager-reports'],
+        inputs: ['Project Alpha', 'U_MANAGER, U_LEAD'],
         // SMTP? no; Slack? yes; thread? yes; disable unfurl previews? yes
         confirms: [false, true, true, true],
       }),
@@ -711,7 +711,7 @@ describe('manage portfolio wizard', () => {
             readonly transports?: {
               readonly slack?: {
                 readonly enabled?: boolean;
-                readonly defaultChannel?: string;
+                readonly targets?: readonly string[];
                 readonly thread?: boolean;
                 readonly unfurlLinks?: boolean;
                 readonly unfurlMedia?: boolean;
@@ -725,7 +725,7 @@ describe('manage portfolio wizard', () => {
       transports: {
         slack: {
           enabled: true,
-          defaultChannel: '#manager-reports',
+          targets: ['U_MANAGER', 'U_LEAD'],
           thread: true,
           unfurlLinks: false,
           unfurlMedia: false,

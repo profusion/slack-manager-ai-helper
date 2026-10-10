@@ -1,7 +1,10 @@
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 import { promisify } from 'node:util';
 import Handlebars from 'handlebars';
 import {
@@ -200,7 +203,7 @@ function isPlainObject(value: unknown): value is JsonObject {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
-async function defaultCommandRunner(
+export async function defaultCommandRunner(
   command: string,
   args: readonly string[],
 ): Promise<{
@@ -235,4 +238,79 @@ function isExecError(input: unknown): input is {
   readonly stderr?: unknown;
 } {
   return typeof input === 'object' && input !== null;
+}
+
+type CoachConfigObject = JsonObject & {
+  readonly transports?: unknown;
+  readonly slack?: unknown;
+  readonly enabled?: unknown;
+  readonly tokenEnvVar?: unknown;
+  readonly thread?: unknown;
+  readonly unfurlLinks?: unknown;
+  readonly unfurlMedia?: unknown;
+  readonly dryRun?: unknown;
+};
+
+function isCoachConfigObject(value: unknown): value is CoachConfigObject {
+  return isPlainObject(value);
+}
+
+function coachNotificationConfig(
+  notification: JsonObject,
+  userId: string,
+): JsonObject & { readonly dryRun: boolean } {
+  const config = isCoachConfigObject(notification) ? notification : undefined;
+  const transports = isCoachConfigObject(config?.transports) ? config.transports : undefined;
+  const slack = isCoachConfigObject(transports?.slack) ? transports.slack : undefined;
+  if (slack?.enabled !== true || typeof slack.tokenEnvVar !== 'string') {
+    throw new Error('Coach DM requires enabled Slack transport with tokenEnvVar');
+  }
+  if (!process.env[slack.tokenEnvVar])
+    throw new Error(`Coach DM Slack token environment variable is unset: ${slack.tokenEnvVar}`);
+  return {
+    name: 'Personal plan coaching',
+    dryRun: config?.dryRun === true,
+    hideCommandIfSuccess: true,
+    stdout: { format: 'markdown' },
+    transports: {
+      slack: {
+        enabled: true,
+        tokenEnvVar: slack.tokenEnvVar,
+        targets: [userId],
+        thread: slack.thread === true,
+        unfurlLinks: typeof slack.unfurlLinks === 'boolean' ? slack.unfurlLinks : false,
+        unfurlMedia: typeof slack.unfurlMedia === 'boolean' ? slack.unfurlMedia : false,
+      },
+    },
+  };
+}
+
+export async function notifyCoachDm(input: {
+  readonly userId: string;
+  readonly text: string;
+  readonly notification: JsonObject;
+  readonly commandRunner?: PortfolioCommandRunner | undefined;
+  readonly command?: string | undefined;
+}): Promise<'delivered' | 'skipped'> {
+  if (Array.from(input.text).length > 12_000) {
+    throw new Error('Coach DM exceeds 12000 characters');
+  }
+  const config = coachNotificationConfig(input.notification, input.userId);
+  const directory = await mkdtemp(path.join(tmpdir(), 'portfolio-coach-dm-'));
+  try {
+    const messagePath = path.join(directory, 'message.md');
+    await writeFile(messagePath, input.text, { mode: 0o600 });
+    const result = await (input.commandRunner ?? defaultCommandRunner)(
+      input.command ?? resolveRunAndNotifyCommand(),
+      [...configToCliArgs(config), '--', 'cat', messagePath],
+    );
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `Coach DM notification failed: ${result.stderr || `exit code ${result.exitCode}`}`,
+      );
+    }
+    return config.dryRun === true ? 'skipped' : 'delivered';
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }

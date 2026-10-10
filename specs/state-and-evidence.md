@@ -7,6 +7,7 @@
 - App state is persisted as JSON and validated against `schemas/persisted-state.schema.json`.
 - State files use a run-centric `v1` shape: root `version`, `topicId`, and `runs`.
 - Each run owns its `memories`, `modelOutputs`, and `evidenceMessages`.
+- Portfolio plan-coach runs also store `coaching[]` records keyed by local date and Slack user ID, with generated text, model identity, creation time, and delivery state/error. Coaching is not part of report Markdown or the compact model-input state.
 - Runs store `executionMode`, optional `requestedRange`, `scanStartCursor`, `scanEndCursor`, `scanStartedAt`, `scanEndedAt`, counts, and status.
 - Explicit runs are selected by `--date`, `--window`, `--start-date`, or `--end-date`; they scan the requested local-date range and ignore prior implicit runs.
 - Implicit runs have no date/window flags; the first starts at local today midnight, later runs start from the latest successful implicit run's frozen `scanEndCursor`, and completed no-match/no-model runs still advance that cursor.
@@ -31,6 +32,7 @@
 
 - `compact-state --keep-runs N` keeps the newest N full runs.
 - Compaction keeps model outputs and evidence only for retained full runs.
+- Compaction removes coaching from old memory-only run skeletons; retained full runs keep it.
 - Compaction keeps memory-bearing run history needed for the latest memory per `(scope, scopeId)`.
 
 ## Compact LLM input state

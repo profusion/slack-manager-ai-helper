@@ -26,6 +26,28 @@
       "items": {
         "$ref": "#/$defs/analysis"
       }
+    },
+    "coach": {
+      "description": "Portfolio plan-coach settings. Enabled defaults to false; prompt and model are required when any tracked user resolves to enabled.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "$ref": "#/$defs/analysisModel"
+        },
+        "skipWhenReportMatches": {
+          "description": "Optional regular expression checked against each tracked user's dated report excerpt before calling the coach model. A match skips coaching for that user and date.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
     }
   },
   "$defs": {
@@ -137,6 +159,26 @@
           "items": {
             "$ref": "#/$defs/targetRunOverride"
           }
+        },
+        "coach": {
+          "description": "Plan-coach overrides for tracked users on this target. A boolean overrides enabled; null or omission inherits. In an object, omitted or null enabled inherits, omitted or null skipWhenReportMatches inherits the root pattern, a string overrides it, and false disables it.",
+          "oneOf": [
+            { "type": ["boolean", "null"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": ["boolean", "null"] },
+                "skipWhenReportMatches": {
+                  "oneOf": [
+                    { "type": "string", "minLength": 1 },
+                    { "const": false },
+                    { "type": "null" }
+                  ]
+                }
+              }
+            }
+          ]
         }
       }
     },
@@ -366,6 +408,97 @@
     "object": {
       "type": "object",
       "additionalProperties": true
+    },
+    "analysisModel": {
+      "description": "LLM provider and generation settings used for matched-message analysis.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model"],
+      "properties": {
+        "provider": {
+          "description": "Built-in AI SDK provider id, such as openai, anthropic, google, xai, openrouter, opencode, openai-compatible, gateway, or ollama.",
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "description": "Provider-specific model name passed to the Vercel AI SDK provider factory.",
+          "type": "string",
+          "minLength": 1
+        },
+        "fallback": {
+          "description": "Optional fallback analysis model tried after this model exhausts its retries because provider execution failed or failOnInvalidOutput rejected structured output. Fallback models use the same schema recursively.",
+          "$ref": "#/$defs/analysisModel"
+        },
+        "retries": {
+          "description": "Number of retry attempts for this model before falling back to model.fallback or failing the run. Defaults to 3, meaning the model may be called up to 4 times.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseUrl": {
+          "description": "Optional provider base URL for analysis model providers that support custom endpoints, such as openai-compatible and ollama. For Ollama, defaults to OLLAMA_URL or http://127.0.0.1:11434.",
+          "type": "string",
+          "minLength": 1
+        },
+        "temperature": {
+          "description": "Optional model sampling temperature. Lower values make outputs more deterministic. Omitted automatically for known reasoning model families that do not support temperature.",
+          "type": "number",
+          "minimum": 0
+        },
+        "reasoningEffort": {
+          "description": "Optional reasoning effort for providers/models that support it. Passed through as the provider-specific AI SDK reasoning effort option.",
+          "type": "string",
+          "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]
+        },
+        "minReportWords": {
+          "description": "Minimum number of meaningful words required in structured reportText. A meaningful word contains at least four alphabetic characters after Markdown formatting, links, URLs, code fences, and punctuation are removed. Defaults to 25.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxOutputTokens": {
+          "description": "Optional upper bound for generated output tokens.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "contextWindowTokens": {
+          "description": "Optional model context window size in tokens. When set, the runtime estimates the fully compiled system and prompt tokens, including schemas and previous memory, and splits model calls by local date/channel before the request would exceed this window.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "timeoutMs": {
+          "description": "Optional timeout in milliseconds for the analysis model call. When omitted, the provider request uses the AI SDK default behavior.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "openrouter": {
+          "description": "Optional OpenRouter-specific analysis model request settings. Only used when model.provider is openrouter; omitted fields are not sent to OpenRouter.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "includeReasoning": {
+              "description": "When false, sends OpenRouter reasoning.exclude=true so reasoning tokens are not included in the response. When true, sends reasoning.exclude=false. When omitted, no reasoning exclude preference is sent.",
+              "type": "boolean"
+            },
+            "order": {
+              "description": "OpenRouter provider slugs to try in order, forwarded as provider.order.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "description": "OpenRouter provider slug.",
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allowFallbacks": {
+              "description": "Whether OpenRouter may use fallback providers when the preferred provider is unavailable, forwarded as provider.allow_fallbacks.",
+              "type": "boolean"
+            }
+          }
+        },
+        "failOnInvalidOutput": {
+          "description": "When true, a model output that fails the prompt-declared JSON Schema is retried according to model.retries before falling back or marking the run as failed. When false, validation errors are stored without crashing.",
+          "type": "boolean"
+        }
+      }
     }
   }
 }

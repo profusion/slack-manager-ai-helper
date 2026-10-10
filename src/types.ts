@@ -80,6 +80,7 @@ export type ConfiguredUser = {
   readonly id: string;
   readonly name?: string | undefined;
   readonly role?: string | undefined;
+  readonly coach?: boolean | null | undefined;
 };
 
 export type KnownUser = {

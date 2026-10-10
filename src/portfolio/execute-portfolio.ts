@@ -9,6 +9,7 @@ import type { ResolvedConfig } from '../types.js';
 import { type UnifiedReportResult, unifiedReport } from '../unified-report.js';
 import { hashJson } from '../utils/json.js';
 import { resolveFromConfig } from '../utils/paths.js';
+import { type CoachingResult, coachPortfolioAnalysis } from './coach-portfolio.js';
 import {
   type JsonObject,
   materializeAnalysisConfig,
@@ -77,6 +78,8 @@ export type PortfolioTaskExecutionResult =
       readonly statePath: string;
       readonly publication?: PortfolioAnalysisReportPublication | undefined;
       readonly notification?: PortfolioNotificationResult | undefined;
+      readonly coaching?: readonly CoachingResult[] | undefined;
+      readonly coachingError?: string | undefined;
     }
   | {
       readonly type: 'rollup';
@@ -388,6 +391,22 @@ async function executeAnalysisTask(input: {
     const result = await runAnalysisOnce(resolved, undefined, {
       dateRange: task.window,
     });
+    let coaching: readonly CoachingResult[] = [];
+    let coachingError: string | undefined;
+    try {
+      coaching = await coachPortfolioAnalysis({
+        manifest: options.manifest,
+        manifestPath: options.manifestPath,
+        task,
+        resolved,
+        runId: result.runId,
+        reportText: result.reportText,
+        notify: options.notify !== false,
+      });
+    } catch (error) {
+      coachingError = error instanceof Error ? error.message : String(error);
+    }
+
     const publication =
       options.publish !== false
         ? await publishPortfolioAnalysisReport({
@@ -430,6 +449,8 @@ async function executeAnalysisTask(input: {
       },
       ...(publication !== undefined ? { publication } : {}),
       ...(notification !== undefined ? { notification } : {}),
+      ...(coaching.length > 0 ? { coaching } : {}),
+      ...(coachingError !== undefined ? { coachingError } : {}),
     };
   } catch (error) {
     return {

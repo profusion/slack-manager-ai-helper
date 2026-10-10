@@ -1,6 +1,16 @@
 {
   "schemaVersion": 1,
   "timezone": "America/Sao_Paulo",
+  "coach": {
+    "enabled": false,
+    "prompt": "plan-reviews/COACH_PROMPT.md",
+    "model": {
+      "provider": "openai",
+      "model": "gpt-5-nano",
+      "reasoningEffort": "none",
+      "retries": 0
+    }
+  },
   "defaults": {
     "analysisConfig": {
       "workspaceUrl": "https://example.slack.com",
@@ -188,7 +198,8 @@
                   {
                     "id": "U_ALPHA_ENGINEER_2",
                     "name": "Alpha Engineer Two",
-                    "role": "engineer"
+                    "role": "engineer",
+                    "coach": false
                   }
                 ]
               }

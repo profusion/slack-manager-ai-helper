@@ -502,6 +502,10 @@
         "role": {
           "description": "Optional role label, such as engineer, manager, requester, or reviewer.",
           "type": "string"
+        },
+        "coach": {
+          "description": "Optional per-user plan-coach override in portfolio runs. Null or omission inherits the target setting.",
+          "type": ["boolean", "null"]
         }
       }
     },

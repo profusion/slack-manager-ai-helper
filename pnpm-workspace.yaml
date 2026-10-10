@@ -2,7 +2,7 @@ overrides:
   semver: "7.8.5"
 
 minimumReleaseAgeExclude:
-  - run-and-notify@0.1.1
+  - run-and-notify
 
 minimumReleaseAge: 2880
 trustPolicy: no-downgrade

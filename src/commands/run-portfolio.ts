@@ -136,6 +136,15 @@ export const runPortfolioCommand: CommandModule<object, RunPortfolioArgv> = {
           'notification' in taskResult &&
           taskResult.notification?.status === 'failed',
       ) ||
+      result.taskResults.some(
+        (taskResult) =>
+          taskResult.type === 'analysis' &&
+          taskResult.status === 'completed' &&
+          (taskResult.coachingError !== undefined ||
+            taskResult.coaching?.some(
+              (item) => item.status === 'failed' || item.persistenceError !== undefined,
+            )),
+      ) ||
       result.git.status === 'failed'
     ) {
       process.exitCode = 1;

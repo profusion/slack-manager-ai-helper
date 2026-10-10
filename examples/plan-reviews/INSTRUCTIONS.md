@@ -832,7 +832,7 @@ Omit bullet points without meaningful values.
 After all users are processed, provide an overall summary for the whole team.
 
 # Date: yyyy-mm-dd (weekday)
-## User: Name (role)
+## User: Name (role) [U_SLACK_ID]
 - Presence: 💤 absent | ✅ first: ${firstMessageAt}, top-level channel: ${channelMessages}, replies to others: ${repliesToOthers}, total: ${totalMessages}; omit the rest of the bullet points if absent.
 - Plan submitted: ❌ no | ✅ yes [${time}](${href}); omit the rest of the points if no plan was submitted.
 - Submitted on time: ❌ no [${time}](${href}) >= 10:00 | ✅ yes [${time}](${href}) < 10:00

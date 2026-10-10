@@ -22,6 +22,7 @@ Plan-review prompts evaluate configured Slack users from redacted evidence. Thes
 - Mark a plan strong only when it names concrete deliverables, expected outcomes, validation or review criteria, and relevant priority/timebox/dependency information.
 - Generic review, investigation, meeting, support, or status-only plans are weak or adequate, not strong by default.
 - Plan-review reports must include specific planning coaching whenever planning quality is not strong, citing what is missing and how the next plan could be improved.
+- Portfolio coach delivery maps each `## User:` review section to a configured Slack user. Daily report headings must append that user's Slack ID in brackets, for example `## User: Ana (engineer) [U123]`. The coach rejects a heading whose name/role conflicts with the configured identity.
 
 ## Memory fields
 

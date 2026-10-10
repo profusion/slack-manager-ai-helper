@@ -41,7 +41,14 @@
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
         }
       },
-      "anyOf": [{ "required": ["startDate"] }, { "required": ["endDate"] }]
+      "anyOf": [
+        {
+          "required": ["startDate"]
+        },
+        {
+          "required": ["endDate"]
+        }
+      ]
     },
     "run": {
       "description": "Execution metadata and nested artifacts for one CLI run.",
@@ -184,6 +191,14 @@
           "items": {
             "description": "One Slack evidence message used in the run.",
             "$ref": "#/$defs/evidenceMessage"
+          }
+        },
+        "coaching": {
+          "description": "Per-day per-user plan-coach messages, separate from the report and model outputs.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/coaching",
+            "description": "One dated plan-coach message and its DM delivery outcome."
           }
         }
       }
@@ -496,6 +511,52 @@
           "enum": ["match", "thread", "nearby", "synthetic_related"]
         }
       }
+    },
+    "coaching": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["date", "userId", "text", "modelProvider", "modelName", "createdAt", "delivery"],
+      "properties": {
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "Local report date in YYYY-MM-DD format."
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Configured Slack user ID receiving the coaching."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Generated personal coaching message."
+        },
+        "modelProvider": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Provider that generated the coaching."
+        },
+        "modelName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Model that generated the coaching."
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Timestamp when the coaching record was saved."
+        },
+        "delivery": {
+          "enum": ["pending", "skipped", "delivered", "failed"],
+          "description": "Slack DM delivery status, or skipped when notifications were disabled."
+        },
+        "deliveryError": {
+          "type": "string",
+          "description": "Slack DM error when delivery failed."
+        }
+      },
+      "description": "A personal plan-coach message for one Slack user on one local date."
     }
   }
 }

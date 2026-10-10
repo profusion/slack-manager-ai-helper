@@ -5,7 +5,7 @@ import type { FormatsPlugin } from 'ajv-formats';
 import * as addFormatsModule from 'ajv-formats';
 import portfolioSchema from '../../schemas/portfolio.schema.json' with { type: 'json' };
 import { validateRawConfig } from '../config/load-config.js';
-import type { AppConfig } from '../types.js';
+import type { AnalysisModelConfig, AppConfig } from '../types.js';
 import { hashJson, parseJsonObject } from '../utils/json.js';
 
 const ajv = new Ajv2020({ allErrors: true });
@@ -19,8 +19,21 @@ export type JsonObject = Record<string, unknown>;
 export type PortfolioManifest = {
   readonly schemaVersion: 1;
   readonly timezone?: string | undefined;
+  readonly coach?: PortfolioCoachConfig | undefined;
   readonly defaults?: PortfolioDefaults | undefined;
   readonly analyses: readonly PortfolioAnalysis[];
+};
+
+export type PortfolioCoachConfig = {
+  readonly enabled?: boolean | undefined;
+  readonly prompt?: string | undefined;
+  readonly model?: AnalysisModelConfig | undefined;
+  readonly skipWhenReportMatches?: string | undefined;
+};
+
+export type PortfolioTargetCoachConfig = {
+  readonly enabled?: boolean | null | undefined;
+  readonly skipWhenReportMatches?: string | false | null | undefined;
 };
 
 export type PortfolioDefaults = {
@@ -50,6 +63,7 @@ export type PortfolioTarget = {
   readonly id: string;
   readonly name: string;
   readonly status: 'active' | 'paused' | 'archived';
+  readonly coach?: boolean | null | PortfolioTargetCoachConfig | undefined;
   readonly startedOn?: string | undefined;
   readonly endedOn?: string | undefined;
   readonly archiveReason?: string | undefined;
@@ -180,7 +194,7 @@ export function materializeRunAndNotifyConfig(input: {
   if (rollup) {
     return ensureNotificationName(
       target,
-      deepMergeObjects(
+      deepMergeRunAndNotifyConfigs(
         input.manifest.defaults?.runAndNotifyConfig,
         analysis.defaults?.runAndNotifyConfig,
         target.runAndNotifyConfig,
@@ -190,7 +204,7 @@ export function materializeRunAndNotifyConfig(input: {
   }
   return ensureNotificationName(
     target,
-    deepMergeObjects(
+    deepMergeRunAndNotifyConfigs(
       input.manifest.defaults?.runAndNotifyConfig,
       analysis.defaults?.runAndNotifyConfig,
       run?.runAndNotifyConfig,
@@ -224,6 +238,37 @@ export function deepMergeObjects(...inputs: readonly (JsonObject | undefined)[])
     }
   }
   return result;
+}
+
+function deepMergeRunAndNotifyConfigs(...inputs: readonly (JsonObject | undefined)[]): JsonObject {
+  let result: JsonObject = {};
+  for (const input of inputs) {
+    if (input === undefined) continue;
+    result = deepMergeObjects(withoutInheritedSlackDestination(result, input), input);
+  }
+  return result;
+}
+
+function withoutInheritedSlackDestination(result: JsonObject, input: JsonObject): JsonObject {
+  const { transports } = input;
+  const slack = isPlainObject(transports) ? Reflect.get(transports, 'slack') : undefined;
+  if (!isPlainObject(slack) || (!('targets' in slack) && !('defaultChannel' in slack))) {
+    return result;
+  }
+
+  const { transports: inheritedTransports } = result;
+  const inheritedSlack = isPlainObject(inheritedTransports)
+    ? Reflect.get(inheritedTransports, 'slack')
+    : undefined;
+  if (!isPlainObject(inheritedTransports) || !isPlainObject(inheritedSlack)) return result;
+
+  const withoutDestination = { ...inheritedSlack };
+  Reflect.deleteProperty(withoutDestination, 'targets');
+  Reflect.deleteProperty(withoutDestination, 'defaultChannel');
+  return {
+    ...result,
+    transports: { ...inheritedTransports, slack: withoutDestination },
+  };
 }
 
 function deepMerge(base: unknown, override: unknown): unknown {
@@ -295,6 +340,7 @@ function ensureNotificationName(target: PortfolioTarget, config: JsonObject): Js
 }
 
 function validatePortfolioSemantics(manifest: PortfolioManifest, manifestPath: string): void {
+  validateSkipPattern(manifest.coach?.skipWhenReportMatches, manifestPath, 'coach');
   const analysisIds = new Set<string>();
   for (const analysis of manifest.analyses) {
     ensureUniqueId(analysis.id, analysisIds, manifestPath, 'analysis');
@@ -315,7 +361,30 @@ function validateAnalysisSemantics(analysis: PortfolioAnalysis, manifestPath: st
   const targetIds = new Set<string>();
   for (const target of analysis.targets) {
     ensureUniqueId(target.id, targetIds, manifestPath, `analysis ${analysis.id} target`);
+    if (target.coach && typeof target.coach === 'object') {
+      validateSkipPattern(
+        target.coach.skipWhenReportMatches,
+        manifestPath,
+        `analysis ${analysis.id} target ${target.id} coach`,
+      );
+    }
     validateTargetSemantics({ analysis, target, manifestPath, runIds });
+  }
+}
+
+function validateSkipPattern(
+  pattern: string | false | null | undefined,
+  manifestPath: string,
+  label: string,
+): void {
+  if (pattern == null || pattern === false) return;
+  try {
+    new RegExp(pattern);
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(
+      `Invalid portfolio manifest ${manifestPath}: ${label}.skipWhenReportMatches is not a valid regular expression: ${detail}`,
+    );
   }
 }
 

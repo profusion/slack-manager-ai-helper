@@ -84,6 +84,106 @@ describe('portfolio manifests', () => {
     });
   });
 
+  it('uses the most specific Slack destination across notification inheritance layers', () => {
+    const manifest: PortfolioManifest = {
+      schemaVersion: 1,
+      defaults: {
+        runAndNotifyConfig: {
+          transports: {
+            slack: { enabled: true, tokenEnvVar: 'SLACK_BOT_TOKEN', targets: ['C_ROOT'] },
+          },
+        },
+      },
+      analyses: [
+        {
+          id: 'analysis',
+          name: 'Analysis',
+          defaults: {
+            runAndNotifyConfig: {
+              transports: { slack: { defaultChannel: '#analysis' } },
+            },
+          },
+          runs: [
+            {
+              id: 'daily',
+              schedule: {},
+              window: {},
+              runAndNotifyConfig: { transports: { slack: { targets: ['C_RUN'] } } },
+            },
+          ],
+          rollups: [
+            {
+              id: 'weekly',
+              schedule: {},
+              window: {},
+              prompt: 'Weekly rollup',
+              runAndNotifyConfig: { transports: { slack: { defaultChannel: '#rollup' } } },
+            },
+          ],
+          targets: [
+            { id: 'plain', name: 'Plain', status: 'active' },
+            {
+              id: 'target',
+              name: 'Target',
+              status: 'active',
+              runAndNotifyConfig: { transports: { slack: { defaultChannel: '#target' } } },
+              runs: [
+                {
+                  runId: 'daily',
+                  runAndNotifyConfig: {
+                    transports: {
+                      slack: { targets: ['C_OVERRIDE'], defaultChannel: '#same-layer-fallback' },
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const slackFor = (targetId: string, runId?: string, rollupId?: string) => {
+      const config = materializeRunAndNotifyConfig({
+        manifest,
+        analysisId: 'analysis',
+        targetId,
+        runId,
+        rollupId,
+      });
+      const { transports } = config;
+      return typeof transports === 'object' && transports !== null && 'slack' in transports
+        ? transports.slack
+        : undefined;
+    };
+
+    expect(slackFor('plain')).toEqual({
+      enabled: true,
+      tokenEnvVar: 'SLACK_BOT_TOKEN',
+      defaultChannel: '#analysis',
+    });
+    expect(slackFor('plain', 'daily')).toEqual({
+      enabled: true,
+      tokenEnvVar: 'SLACK_BOT_TOKEN',
+      targets: ['C_RUN'],
+    });
+    expect(slackFor('target')).toEqual({
+      enabled: true,
+      tokenEnvVar: 'SLACK_BOT_TOKEN',
+      defaultChannel: '#target',
+    });
+    expect(slackFor('target', 'daily')).toEqual({
+      enabled: true,
+      tokenEnvVar: 'SLACK_BOT_TOKEN',
+      targets: ['C_OVERRIDE'],
+      defaultChannel: '#same-layer-fallback',
+    });
+    expect(slackFor('target', undefined, 'weekly')).toEqual({
+      enabled: true,
+      tokenEnvVar: 'SLACK_BOT_TOKEN',
+      defaultChannel: '#rollup',
+    });
+  });
+
   it('infers notification name from target name when omitted', () => {
     const manifest: PortfolioManifest = {
       schemaVersion: 1,
@@ -364,6 +464,66 @@ describe('portfolio manifests', () => {
         'portfolio.json',
       ),
     ).toThrow('archived target analysis/target requires endedOn');
+  });
+
+  it('rejects invalid coaching skip regexes at either inheritance layer', () => {
+    const base = {
+      schemaVersion: 1,
+      analyses: [
+        {
+          id: 'analysis',
+          name: 'Analysis',
+          targets: [{ id: 'target', name: 'Target', status: 'active' }],
+        },
+      ],
+    };
+
+    expect(() =>
+      validateRawPortfolioManifest(
+        { ...base, coach: { skipWhenReportMatches: '[' } },
+        'portfolio.json',
+      ),
+    ).toThrow('coach.skipWhenReportMatches is not a valid regular expression');
+    expect(() =>
+      validateRawPortfolioManifest(
+        {
+          ...base,
+          analyses: [
+            {
+              ...base.analyses[0],
+              targets: [
+                {
+                  ...base.analyses[0]?.targets[0],
+                  coach: { skipWhenReportMatches: '[' },
+                },
+              ],
+            },
+          ],
+        },
+        'portfolio.json',
+      ),
+    ).toThrow('target target coach.skipWhenReportMatches is not a valid regular expression');
+
+    expect(() =>
+      validateRawPortfolioManifest(
+        {
+          ...base,
+          coach: { skipWhenReportMatches: 'strong' },
+          analyses: [
+            {
+              ...base.analyses[0],
+              targets: [
+                {
+                  ...base.analyses[0]?.targets[0],
+                  coach: { skipWhenReportMatches: false },
+                },
+              ],
+            },
+          ],
+        },
+        'portfolio.json',
+      ),
+    ).not.toThrow();
   });
 
   it('rejects run-and-notify stdout and stderr parsing in portfolio manifests', () => {

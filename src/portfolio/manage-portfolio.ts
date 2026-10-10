@@ -1851,7 +1851,7 @@ async function buildOverrideRunAndNotifyTransports(
   }
   if (
     await prompts.confirm({
-      message: 'Configure Slack channel override?',
+      message: 'Configure Slack target overrides?',
       default: hadSlack,
     })
   ) {
@@ -1979,11 +1979,11 @@ async function promptSlackTransport(
     default: readJsonString(initial, 'tokenEnvVar') ?? 'SLACK_BOT_TOKEN',
     required: true,
   });
-  const defaultChannel = await prompts.input({
-    message: 'Slack default channel',
-    default: readJsonString(initial, 'defaultChannel') ?? '#manager-reports',
-    required: true,
-  });
+  const targets = await promptSlackTargets(
+    prompts,
+    initial,
+    'Slack targets (comma-separated channel or user IDs)',
+  );
   const thread = await prompts.confirm({
     message: 'Post notifications in a thread?',
     default: readJsonBoolean(initial, 'thread') ?? false,
@@ -1992,7 +1992,7 @@ async function promptSlackTransport(
   return {
     enabled: true,
     tokenEnvVar,
-    defaultChannel,
+    targets,
     thread,
     ...unfurl,
   };
@@ -2002,11 +2002,11 @@ async function promptSlackTransportOverride(
   prompts: PortfolioPromptApi,
   initial: JsonObject | undefined,
 ): Promise<JsonObject | null> {
-  const defaultChannel = await prompts.input({
-    message: 'Slack default channel override',
-    default: readJsonString(initial, 'defaultChannel') ?? '#manager-reports',
-    required: true,
-  });
+  const targets = await promptSlackTargets(
+    prompts,
+    initial,
+    'Slack target overrides (comma-separated channel or user IDs)',
+  );
   const thread = await prompts.confirm({
     message: 'Post notifications in a thread?',
     default: readJsonBoolean(initial, 'thread') ?? false,
@@ -2014,10 +2014,39 @@ async function promptSlackTransportOverride(
   const unfurl = await promptSlackUnfurlOptions(prompts, initial);
   return stripUndefinedObject({
     enabled: true,
-    defaultChannel,
+    targets,
     ...(thread ? { thread } : {}),
     ...unfurl,
   });
+}
+
+async function promptSlackTargets(
+  prompts: PortfolioPromptApi,
+  initial: JsonObject | undefined,
+  message: string,
+): Promise<string[]> {
+  const raw = await prompts.input({
+    message,
+    default:
+      readStringArray(readJsonValue(initial, 'targets')).join(', ') ||
+      readJsonString(initial, 'defaultChannel') ||
+      '#manager-reports',
+    required: true,
+    validate: (value) => {
+      const targets = parseSlackTargets(value);
+      if (targets.length === 0) return 'Enter at least one Slack target';
+      if (new Set(targets).size !== targets.length) return 'Slack targets must be unique';
+      return true;
+    },
+  });
+  return parseSlackTargets(raw);
+}
+
+function parseSlackTargets(value: string): string[] {
+  return value
+    .split(',')
+    .map((target) => target.trim())
+    .filter(Boolean);
 }
 
 async function promptSlackUnfurlOptions(

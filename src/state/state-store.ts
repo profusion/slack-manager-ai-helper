@@ -42,6 +42,17 @@ export type EvidenceRecord = EvidenceMessage & {
   readonly topicId: string;
 };
 
+export type CoachingRecord = {
+  readonly date: string;
+  readonly userId: string;
+  readonly text: string;
+  readonly modelProvider: string;
+  readonly modelName: string;
+  readonly createdAt: string;
+  readonly delivery: 'pending' | 'skipped' | 'delivered' | 'failed';
+  readonly deliveryError?: string | undefined;
+};
+
 export type RunRecord = {
   readonly id: string;
   readonly topicId: string;
@@ -62,6 +73,7 @@ export type RunRecord = {
   readonly modelCalled: boolean;
   readonly memories: readonly MemoryRecord[];
   readonly modelOutputs: readonly ModelOutputRecord[];
+  readonly coaching?: readonly CoachingRecord[] | undefined;
   readonly evidenceMessages: readonly EvidenceRecord[];
 };
 
@@ -115,6 +127,10 @@ export function openStateStore(statePath: string, topicId: string): StateStore {
     statePath,
     state,
   };
+}
+
+export function readStateStore(statePath: string): StateStore {
+  return { statePath, state: readPersistedState(statePath) };
 }
 
 export function createRun(
@@ -235,6 +251,18 @@ export function saveModelOutput(store: StateStore, input: SaveModelOutputInput):
   }));
 }
 
+export function saveCoaching(store: StateStore, runId: string, record: CoachingRecord): StateStore {
+  return updateRun(store, runId, (run) => ({
+    ...run,
+    coaching: [
+      ...(run.coaching ?? []).filter(
+        (item) => item.date !== record.date || item.userId !== record.userId,
+      ),
+      record,
+    ],
+  }));
+}
+
 type SaveModelOutputInput = {
   readonly id: string;
   readonly runId: string;
@@ -342,6 +370,7 @@ export function compactState(
             ...run,
             evidenceMessages: [],
             modelOutputs: [],
+            coaching: [],
           },
     );
 

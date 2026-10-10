@@ -64,6 +64,7 @@ Use `pnpm run slack-manager-ai-helper <command>` during local development, or th
 - `pnpm run slack-manager-ai-helper inspect-config --config examples/plan-reviews-config.json`
 - `pnpm run slack-manager-ai-helper validate-config --config examples/plan-reviews-config.json` exits `0` on success and writes JSON validation/load errors to stderr with exit `1`, without Pino logging.
 - `pnpm run slack-manager-ai-helper compact-state --config examples/plan-reviews-config.json --keep-runs 20` compacts the topic state file and writes a timestamped backup unless `--no-backup` is passed.
+- `pnpm run slack-manager-ai-helper inspect-coaching --state state/plan-reviews/project-alpha.json [--date YYYY-MM-DD] [--user U123]` prints stored coach text and delivery status from a portfolio target state file.
 - `pnpm run slack-manager-ai-helper resolve-evidence --config examples/plan-reviews-config.json --id '2026-06-05T12-00-00-000Z:0' [--output link|json]` resolves evidence by persisted `run-id:index` id or by unique Slack/slacrawl `messageId` UUID.
 - `resolve-evidence --output link` prints the configured Slack HTTP permalink.
 - `resolve-evidence --output json` includes the redacted stored evidence record, how the id was resolved, state path, computed reference fields, and a labeled `slack-reference` coordinate.

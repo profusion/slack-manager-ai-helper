@@ -7,6 +7,7 @@ import { collectModelInputCommand } from './commands/collect-model-input.js';
 import { compactStateCommand } from './commands/compact-state.js';
 import { createConfigCommand } from './commands/create-config.js';
 import { editConfigCommand } from './commands/edit-config.js';
+import { inspectCoachingCommand } from './commands/inspect-coaching.js';
 import { inspectConfigCommand } from './commands/inspect-config.js';
 import { managePortfolioCommand } from './commands/manage-portfolio.js';
 import { portfolioResourceCommand } from './commands/portfolio-resource.js';
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
     .command(compactStateCommand)
     .command(collectModelInputCommand)
     .command(inspectConfigCommand)
+    .command(inspectCoachingCommand)
     .command(resolveEvidenceCommand)
     .command(unifiedReportCommand)
     .command(runPortfolioCommand)

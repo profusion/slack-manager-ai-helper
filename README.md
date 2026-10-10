@@ -81,6 +81,7 @@ State files can be compacted when history grows too large:
 
 ```bash
 slack-manager-ai-helper compact-state --config examples/plan-reviews-config.json --keep-runs 20
+slack-manager-ai-helper inspect-coaching --state state/plan-reviews/project-alpha.json
 ```
 
 This keeps the last `N` full runs, prunes model outputs and evidence for older non-retained runs,
@@ -198,6 +199,35 @@ every materialized channel matcher list, before validation with `schemas/config.
 `matchers`, the common matchers become that channel's matcher list. `runAndNotifyConfig.name` is
 optional in portfolio manifests and defaults to the target display `name`; override it only when the
 notification label should differ from the target name.
+For Slack notifications, a more-specific `transports.slack.targets` or legacy `defaultChannel`
+replaces the destination inherited from an earlier `runAndNotifyConfig` layer. Other Slack transport
+settings still deep-merge. If one layer sets both destination fields, `targets` takes precedence.
+
+Plan coaching is optional. Set root `coach.enabled` to `true` to coach every tracked user, or keep
+the default `false` and enable selected targets or users. Set root `coach.prompt` to a Markdown path
+relative to the portfolio manifest and `coach.model` to a provider/model config when any user can be
+coached. Set root `coach.skipWhenReportMatches` to a JavaScript regular-expression string to skip
+the model call for an individual user's dated report section when it matches. A target can use
+`"coach": true`, `false`, or `null`, or an object with `enabled` and
+`skipWhenReportMatches` overrides; omitted or `null` fields inherit the root setting, while
+`skipWhenReportMatches: false` disables the inherited regex for that target. A tracked
+`analysisConfig.channels[].users[].coach` overrides the target's enabled setting. User overrides
+accept `true`, `false`, or `null`; `null` and omission inherit. A skipped report section triggers
+neither a model call nor a DM. The coach prompt may also return exactly `NO_COACHING_NEEDED` when
+there is no useful improvement; this sends no DM. Coach output is stored only in the target
+state JSON under `runs[].coaching[]`, separate from the published review. The report must use
+`## User: Name (role) [U123]` headings to identify the intended DM recipient. When notifications
+are enabled, coach messages go through `run-and-notify` to one Slack DM per user and date. Delivery
+uses the materialized `runAndNotifyConfig.transports.slack.tokenEnvVar` and `thread`. Explicit Slack
+unfurl settings are honored; omitted settings default to `false` for coaching. Top-level `dryRun`
+also carries through and records delivery as `skipped` without sending a DM. Manager recipients,
+SMTP, and templates do not carry through. `--no-notify` still generates and stores coaching. The
+model output goes through a private temporary file as Markdown stdout, which `run-and-notify`
+renders into Slack blocks for headings, emphasis, lists, links, and
+code. A message over 12,000 characters fails delivery rather than being truncated. With
+`runAndNotifyConfig.transports.slack.thread: true`, `run-and-notify` sends a parent message and
+threaded replies named `Personal plan coaching`.
+Use `inspect-coaching --state <path> [--date YYYY-MM-DD] [--user U123]` to inspect them.
 
 `manage-portfolio` is an interactive manifest editor for private ops manifests. It can list the
 portfolio, add analyses and targets, edit target channels with the same guided channel/user/matcher
@@ -209,7 +239,9 @@ pause/resume/archive targets, configure `runAndNotifyConfig` with guided SMTP/Sl
 or raw JSON at portfolio/analysis/target scope, validate, and preview the same dry-run plan as
 `run-portfolio --dry-run`. Portfolio-default guided notification setup collects full transport
 settings; analysis and target guided setup collects only override fields such as SMTP `to` and Slack
-`defaultChannel` because those blocks deep-merge with parent config. Guided Slack setup can disable
+`targets` because those blocks deep-merge with parent config. Enter comma-separated Slack channel or
+user IDs; the wizard stores an array and seeds the prompt from legacy `defaultChannel` if present.
+Guided Slack setup can disable
 classic link/media previews via `transports.slack.unfurlLinks` and `transports.slack.unfurlMedia`
 (`false`/`false`), which `run-and-notify` forwards to Better Notify. Submenus include a back option so
 edit flows can return without saving changes. New target setup seeds user roles from sibling targets when available. New schedule
