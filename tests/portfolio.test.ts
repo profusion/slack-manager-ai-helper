@@ -54,6 +54,133 @@ describe('portfolio manifests', () => {
     expect(config.channels?.map((channel) => channel.id)).toEqual(['C_PROJECT_BETA']);
   });
 
+  it('appends target prompts after run-specific prompt overrides without affecting sibling targets', () => {
+    const manifest: PortfolioManifest = {
+      schemaVersion: 1,
+      defaults: {
+        analysisConfig: {
+          workspaceUrl: 'https://example.slack.com',
+          prompts: ['shared.md'],
+          model: { provider: 'openai', model: 'base-model' },
+        },
+      },
+      analyses: [
+        {
+          id: 'analysis',
+          name: 'Analysis',
+          runs: [
+            {
+              id: 'daily',
+              schedule: {},
+              window: {},
+              analysisConfig: { prompts: ['daily.md'] },
+            },
+          ],
+          targets: [
+            {
+              id: 'first',
+              name: 'First',
+              status: 'active',
+              additionalPrompts: ['target-1.md', 'target-2.md'],
+              runs: [{ runId: 'daily', analysisConfig: { prompts: ['target-daily.md'] } }],
+            },
+            { id: 'second', name: 'Second', status: 'active' },
+          ],
+        },
+      ],
+    };
+
+    const materialize = (targetId: string, runId?: string) =>
+      materializeAnalysisConfig({ manifest, analysisId: 'analysis', targetId, runId }).prompts;
+
+    expect(materialize('first')).toEqual(['shared.md', 'target-1.md', 'target-2.md']);
+    expect(materialize('first', 'daily')).toEqual([
+      'target-daily.md',
+      'target-1.md',
+      'target-2.md',
+    ]);
+    expect(materialize('second', 'daily')).toEqual(['daily.md']);
+    expect(manifest.defaults?.analysisConfig).toMatchObject({ prompts: ['shared.md'] });
+  });
+
+  it('appends target prompts to a single inherited prompt reference', () => {
+    const manifest: PortfolioManifest = {
+      schemaVersion: 1,
+      defaults: {
+        analysisConfig: {
+          workspaceUrl: 'https://example.slack.com',
+          prompts: 'shared.md',
+          model: { provider: 'openai', model: 'base-model' },
+        },
+      },
+      analyses: [
+        {
+          id: 'analysis',
+          name: 'Analysis',
+          targets: [
+            {
+              id: 'target',
+              name: 'Target',
+              status: 'active',
+              additionalPrompts: ['target.md'],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(
+      materializeAnalysisConfig({ manifest, analysisId: 'analysis', targetId: 'target' }).prompts,
+    ).toEqual(['shared.md', 'target.md']);
+  });
+
+  it('does not make an invalid inherited prompt value valid when target prompts are added', () => {
+    const manifest: PortfolioManifest = {
+      schemaVersion: 1,
+      defaults: {
+        analysisConfig: {
+          workspaceUrl: 'https://example.slack.com',
+          prompts: 42,
+          model: { provider: 'openai', model: 'base-model' },
+        },
+      },
+      analyses: [
+        {
+          id: 'analysis',
+          name: 'Analysis',
+          targets: [
+            { id: 'target', name: 'Target', status: 'active', additionalPrompts: ['target.md'] },
+          ],
+        },
+      ],
+    };
+
+    expect(() =>
+      materializeAnalysisConfig({ manifest, analysisId: 'analysis', targetId: 'target' }),
+    ).toThrow();
+  });
+
+  it.each([[], [''], [42], 'target.md'])(
+    'rejects invalid target additionalPrompts %j',
+    (additionalPrompts) => {
+      expect(() =>
+        validateRawPortfolioManifest(
+          {
+            schemaVersion: 1,
+            analyses: [
+              {
+                id: 'analysis',
+                name: 'Analysis',
+                targets: [{ id: 'target', name: 'Target', status: 'active', additionalPrompts }],
+              },
+            ],
+          },
+          'portfolio.json',
+        ),
+      ).toThrow('Invalid portfolio manifest');
+    },
+  );
+
   it('replaces arrays while recursively merging notification objects', async () => {
     const { manifest } = await loadPortfolioManifest('examples/portfolio-plan-reviews.json');
 

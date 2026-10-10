@@ -7,6 +7,7 @@ For the original generic portfolio automation source spec and roadmap, see [`run
 - `schemas/portfolio.schema.json` defines the generic portfolio manifest shape.
 - `src/portfolio/load-portfolio.ts` validates portfolio manifests, enforces lifecycle semantics, and materializes target analysis configs with deterministic deep merge.
 - Portfolio `analysisConfig` defaults and overrides must deep-merge into a complete `schemas/config.schema.json` config.
+- Target `additionalPrompts` is an optional, non-empty array of non-empty prompt references. After all analysis config layers merge, its references append in order to the fully merged `prompts` value before config validation. The inherited value may be one reference or an array; absent and invalid inherited values retain their normal validation behavior. A target's additions do not affect sibling targets.
 - Include required root fields such as `workspaceUrl`, `prompts`, and `model` at shared defaults when targets only override channels or matchers.
 - Portfolio `defaults.matchers.pre/post` compose common matcher objects into every materialized channel matcher list after deep merge.
 - Use `defaults.matchers.pre/post` for shared suppressors such as `exclude_laughs`.

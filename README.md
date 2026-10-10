@@ -199,6 +199,11 @@ every materialized channel matcher list, before validation with `schemas/config.
 `matchers`, the common matchers become that channel's matcher list. `runAndNotifyConfig.name` is
 optional in portfolio manifests and defaults to the target display `name`; override it only when the
 notification label should differ from the target name.
+Set `analyses[].targets[].additionalPrompts` to a non-empty array of non-empty prompt references
+when one target needs extra instructions. These references append in order after the final
+`analysisConfig.prompts` selected by portfolio defaults, analysis defaults, run, target, and
+target-run overrides. The inherited `prompts` may be a single reference or an array; a target
+without `additionalPrompts` keeps the existing replacement behavior for prompt arrays.
 For Slack notifications, a more-specific `transports.slack.targets` or legacy `defaultChannel`
 replaces the destination inherited from an earlier `runAndNotifyConfig` layer. Other Slack transport
 settings still deep-merge. If one layer sets both destination fields, `targets` takes precedence.

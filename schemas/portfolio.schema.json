@@ -151,6 +151,15 @@
         "analysisConfig": {
           "$ref": "#/$defs/object"
         },
+        "additionalPrompts": {
+          "description": "Prompt references appended to the fully merged analysisConfig.prompts for this target, in order.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "runAndNotifyConfig": {
           "$ref": "#/$defs/runAndNotifyConfig"
         },

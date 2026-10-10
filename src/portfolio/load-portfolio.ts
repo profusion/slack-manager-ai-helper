@@ -68,6 +68,7 @@ export type PortfolioTarget = {
   readonly endedOn?: string | undefined;
   readonly archiveReason?: string | undefined;
   readonly analysisConfig?: JsonObject | undefined;
+  readonly additionalPrompts?: readonly string[] | undefined;
   readonly runAndNotifyConfig?: JsonObject | undefined;
   readonly runs?: readonly PortfolioTargetRunOverride[] | undefined;
 };
@@ -168,9 +169,20 @@ export function materializeAnalysisConfig(input: {
     merged,
     deepMergeCommonMatchers(input.manifest.defaults?.matchers, analysis.defaults?.matchers),
   );
+  const { prompts } = withCommonMatchers as JsonObject & { readonly prompts?: unknown };
+  const withAdditionalPrompts =
+    target.additionalPrompts && (typeof prompts === 'string' || Array.isArray(prompts))
+      ? {
+          ...withCommonMatchers,
+          prompts: [
+            ...(typeof prompts === 'string' ? [prompts] : prompts),
+            ...target.additionalPrompts,
+          ],
+        }
+      : withCommonMatchers;
 
   return validateRawConfig(
-    withCommonMatchers,
+    withAdditionalPrompts,
     input.configPathForValidation ?? 'materialized portfolio config',
   );
 }
