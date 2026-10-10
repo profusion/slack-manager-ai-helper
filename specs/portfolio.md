@@ -41,6 +41,8 @@ For the original generic portfolio automation source spec and roadmap, see [`run
 ## Manage portfolio wizard
 
 - `manage-portfolio` is the interactive portfolio manifest editor in `src/portfolio/manage-portfolio.ts`.
+- New targets added through `manage-portfolio` receive `additionalPrompts: ["custom-prompts/<target-id>.md"]` by default. `--no-create-custom-prompt` disables both the reference and file creation for new targets, including the first target added with a new analysis.
+- On save, `manage-portfolio` validates the manifest before creating missing files referenced by the exact canonical form `custom-prompts/<target-id>.md`. Paths are relative to the manifest directory. It creates empty files and directories, preserves existing file content, and creates missing files already referenced by existing targets. `--no-create-custom-prompt` disables all automatic file creation, including creation for existing targets. Other `additionalPrompts` references are not materialized. Exit without saving creates no files.
 - It edits manifest structures and JSON override blocks.
 - It validates before saving.
 - It writes timestamped backups.

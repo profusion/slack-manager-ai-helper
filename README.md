@@ -252,7 +252,11 @@ classic link/media previews via `transports.slack.unfurlLinks` and `transports.s
 edit flows can return without saving changes. New target setup seeds user roles from sibling targets when available. New schedule
 prompts default to `22:00`. Saving validates the manifest first and writes a timestamped `.bak`
 beside an existing manifest before replacing it. Pass `--create` when the manifest path does not
-exist and you want to start a new manifest.
+exist and you want to start a new manifest. New targets reference an empty
+`custom-prompts/<target-id>.md` file by default. The wizard creates missing canonical prompt files
+only when you save, without replacing existing prompt content. Pass `--no-create-custom-prompt` to
+omit the reference for new targets and disable creation of missing files already referenced by
+existing targets.
 
 To build a new config interactively from an existing one, use:
 

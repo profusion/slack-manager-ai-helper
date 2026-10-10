@@ -53,6 +53,7 @@ Use `pnpm run slack-manager-ai-helper <command>` during local development, or th
 - `--due` on `run-portfolio` plans tasks due at invocation time using the current local day and schedule time.
 - Analysis execution, attached rollups, maintenance, report publishing, notification delivery, and target-lane parallelism with `--concurrency N` are available.
 - `pnpm run slack-manager-ai-helper manage-portfolio --manifest examples/portfolio-plan-reviews.json` opens the interactive portfolio manifest editor.
+- `manage-portfolio --no-create-custom-prompt` disables automatic custom prompt references for new targets and creation of missing files already referenced by existing targets. Files are created only when the manifest is saved.
 - `manage-portfolio` can add/edit analyses, targets, runs, rollups, maintenance, target lifecycle status, and `runAndNotifyConfig` overrides.
 - `manage-portfolio` submenus include a back option so flows such as edit target can return without saving changes.
 - `manage-portfolio` can configure `runAndNotifyConfig` with guided SMTP/Slack transport prompts or raw JSON editing.

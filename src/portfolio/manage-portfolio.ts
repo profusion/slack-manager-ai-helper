@@ -1,3 +1,4 @@
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   checkbox,
@@ -91,6 +92,7 @@ export type ManagePortfolioOptions = {
   readonly manifest: string;
   readonly now?: Date | undefined;
   readonly createIfMissing?: boolean | undefined;
+  readonly createCustomPrompt?: boolean | undefined;
 };
 
 export type ManagePortfolioResult = {
@@ -144,6 +146,7 @@ export async function runManagePortfolioWizard(
       manifestPath,
       prompts,
       generateText,
+      createCustomPrompt: options.createCustomPrompt ?? true,
       now,
       dirty,
       saved,
@@ -175,6 +178,7 @@ async function handleWizardAction(input: {
   readonly manifestPath: string;
   readonly prompts: PortfolioPromptApi;
   readonly generateText: GenerateModelText;
+  readonly createCustomPrompt: boolean;
   readonly now: Date;
   readonly dirty: boolean;
   readonly saved: boolean;
@@ -202,6 +206,7 @@ async function handleWizardAction(input: {
           input.manifestPath,
           input.prompts,
           input.generateText,
+          input.createCustomPrompt,
         ),
         dirty: true,
       };
@@ -213,7 +218,13 @@ async function handleWizardAction(input: {
     case 'add-target':
       return applyOptionalManifestUpdate(
         base,
-        await addTarget(input.manifest, input.manifestPath, input.prompts, input.generateText),
+        await addTarget(
+          input.manifest,
+          input.manifestPath,
+          input.prompts,
+          input.generateText,
+          input.createCustomPrompt,
+        ),
       );
     case 'edit-target':
       return applyOptionalManifestUpdate(
@@ -270,6 +281,10 @@ async function handleWizardAction(input: {
       console.log(`Valid portfolio manifest: ${input.manifestPath}`);
       return base;
     case 'save-exit': {
+      validateManifest(input.manifest, input.manifestPath);
+      if (input.createCustomPrompt) {
+        await createMissingCanonicalPromptFiles(input.manifest, input.manifestPath);
+      }
       const savedBackupPath = await saveManifest(input.manifestPath, input.manifest, input.now);
       return {
         ...base,
@@ -372,6 +387,7 @@ async function addAnalysis(
   manifestPath: string,
   prompts: PortfolioPromptApi,
   generateText: GenerateModelText,
+  createCustomPrompt: boolean,
 ): Promise<PortfolioManifest> {
   const analysis: PortfolioAnalysis = {
     id: await promptSlug(prompts, 'Analysis id'),
@@ -396,7 +412,14 @@ async function addAnalysis(
       default: true,
     })
   ) {
-    return addTargetToAnalysis(withAnalysis, analysis.id, manifestPath, prompts, generateText);
+    return addTargetToAnalysis(
+      withAnalysis,
+      analysis.id,
+      manifestPath,
+      prompts,
+      generateText,
+      createCustomPrompt,
+    );
   }
   return withAnalysis;
 }
@@ -425,12 +448,20 @@ async function addTarget(
   manifestPath: string,
   prompts: PortfolioPromptApi,
   generateText: GenerateModelText,
+  createCustomPrompt: boolean,
 ): Promise<PortfolioManifest | null> {
   const analysis = await selectAnalysis(manifest, prompts);
   if (!analysis) {
     return null;
   }
-  return addTargetToAnalysis(manifest, analysis.id, manifestPath, prompts, generateText);
+  return addTargetToAnalysis(
+    manifest,
+    analysis.id,
+    manifestPath,
+    prompts,
+    generateText,
+    createCustomPrompt,
+  );
 }
 
 async function addTargetToAnalysis(
@@ -439,6 +470,7 @@ async function addTargetToAnalysis(
   manifestPath: string,
   prompts: PortfolioPromptApi,
   generateText: GenerateModelText,
+  createCustomPrompt: boolean,
 ): Promise<PortfolioManifest> {
   const analysis = manifest.analyses.find((item) => item.id === analysisId);
   if (!analysis) {
@@ -447,9 +479,12 @@ async function addTargetToAnalysis(
 
   const target = await promptTarget(manifest, analysis, manifestPath, prompts, generateText);
   ensureUnusedId(analysis.targets, target.id, 'target');
+  const targetToAdd = createCustomPrompt
+    ? { ...target, additionalPrompts: [`custom-prompts/${target.id}.md`] }
+    : target;
   return updateAnalysis(manifest, analysisId, (value) => ({
     ...value,
-    targets: [...value.targets, target],
+    targets: [...value.targets, targetToAdd],
   }));
 }
 
@@ -2397,6 +2432,43 @@ function printPreview(manifest: PortfolioManifest, manifestPath: string, now: Da
     localTimeZone,
   });
   console.log(JSON.stringify(plan, null, 2));
+}
+
+async function createMissingCanonicalPromptFiles(
+  manifest: PortfolioManifest,
+  manifestPath: string,
+): Promise<void> {
+  const promptReferences = new Set(
+    manifest.analyses.flatMap((analysis) =>
+      analysis.targets.flatMap((target) => {
+        const reference = `custom-prompts/${target.id}.md`;
+        return target.additionalPrompts?.includes(reference) ? [reference] : [];
+      }),
+    ),
+  );
+  if (promptReferences.size === 0) {
+    return;
+  }
+  const manifestDirectory = path.dirname(manifestPath);
+  const promptDirectory = path.join(manifestDirectory, 'custom-prompts');
+  await mkdir(promptDirectory, { recursive: true });
+  for (const reference of promptReferences) {
+    const promptPath = path.resolve(manifestDirectory, reference);
+    try {
+      await writeFile(promptPath, '', { encoding: 'utf8', flag: 'wx' });
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) {
+        throw error;
+      }
+      if (!(await stat(promptPath)).isFile()) {
+        throw new Error(`Canonical custom prompt path is not a file: ${promptPath}`);
+      }
+    }
+  }
+}
+
+function isAlreadyExistsError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'EEXIST';
 }
 
 function localDateForBackup(now: Date): string {
